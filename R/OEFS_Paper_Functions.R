@@ -4,6 +4,8 @@
 ## author: Mirjam R. Rieger
 ## latest update: 2023-06-03 (MR)
   # 2023-06-03 (MR): added add.zeros-function
+  # 2023-06-16 (MR): added option (FALSE/TRUE) to obs.eff and weight to get additional dataframe or not
+  #                  and updated weight-function to calculate weights per region, too
 
 ## content:
   ##
@@ -67,11 +69,15 @@
 ## by_spec    (default = FALSE):      logical indicating whether weights should be calculated per species 
 ##                                      (e.g., if observations were excluded species-specific resulting in different annual site-subsets per species)
 ## species    (default = "species"):  columname of species name in df.data (only needed if by_spec = TRUE)
+## add.df     (default = TRUE):       if TRUE, returns a dataframe with weights per habitat and year (and species)
 
 ## output:
 ##########-
 
-## The function returns a dataframe containing weights per habitat and year (and species if by_spec = TRUE). This dataframe has the following columns:
+## the function weight returns a dataframe including the implemented raw data "df.data" as well as
+   ## "weight" per habitat and year (and species if by_spec = TRUE) and the default columns "habitat", "ID", "year" (and "species"). 
+   ## If by_spec = FALSE, the weights per habitat and year are the same for all species. 
+## The function optionally returns the dataframe "df.w" containing weights per habitat and year (and species if by_spec = TRUE). This dataframe has the following columns:
    ## year:     year of survey
    ## habitat:  habitat
    ## N.sites:  number of surveyed sites per habitat and year (and species)
@@ -79,14 +85,13 @@
    ## target:   target share of the habitat
    ## weight:   weight for each habitat-year (or habitat-year-species) combination
    ## (species: species name (only if by_spec = TRUE))
-## the function weight additionally saves the the dataframe "df.weight" including the implemented raw data "df.data" as well as
-   ## "weight" per habitat and year (and species if by_spec = TRUE) and the default columns "habitat", "ID", "year" (and "species). 
-   ## If by_spec = FALSE, the weights per habitat and year are the same for all species. 
+
 
 weight <- function(df.habitat = NULL, habitat = "habitat", area = "area",
                    df.data = NULL, ID = "ID", year = "year",
                    by_spec = FALSE, species = "species",
-                   by_reg = FALSE, region = "region") {
+                   by_reg = FALSE, region = "region",
+                   add.df = TRUE) {
   
   require(dplyr)
   
@@ -103,99 +108,72 @@ weight <- function(df.habitat = NULL, habitat = "habitat", area = "area",
   if(!(year %in% colnames(df.data)))       stop(paste0("The column '", year, "' is missing in df.data."))
   
   if(by_spec) if(!(species %in% colnames(df.data)))  stop(paste0("The column '", species, "' is missing in df.data."))
-  if(by_reg)  if(!(region  %in% colnames(df.data)))  stop(paste0("The column '", region, "' is missing in df.data."))
+  if(by_reg)  {
+    if(!(region  %in% colnames(df.data)))    stop(paste0("The column '", region, "' is missing in df.data."))
+    if(!(region  %in% colnames(df.habitat))) stop(paste0("The column '", region, "' is missing in df.habitat."))
+  }
   
   ## calculate target share
   #########################-
   df.habitat$habitat <- df.habitat[, habitat]
   df.habitat$area    <- df.habitat[, area]
   
-  ## habitat per region (if by_reg = TRUE)
+  ## target habitat per region (if by_reg = TRUE)
   if(by_reg) {
     df.habitat$region    <- df.habitat[, region]
-    df.habitat.R <- df.habitat %>% group_by(habitat, region) %>%
-      summarise(area = sum(area), .groups = "drop")
-    
-    for(r in unique(df.habitat.R)) {
-      df.habitat.R$target[df.habitat.R$region == r]  <- df.habitat.R$area[df.habitat.R$region == r]/sum(df.habitat.R$area[df.habitat.R$region == r])
-    }
+    df.habitat <- df.habitat %>% group_by(habitat, region) %>%
+      summarise(area = sum(area), .groups = "drop") %>%
+      ungroup() %>%
+      group_by(region) %>%
+      mutate(target = area/sum(area))
   }
   
-  df.habitat <- df.habitat %>% group_by(habitat) %>%
+  ## target habitat (if by_reg = FALSE)
+  if(by_reg == FALSE) {
+    df.habitat <- df.habitat %>% group_by(habitat) %>%
     summarise(area = sum(area), .groups = "drop")
-  df.habitat$target  <- df.habitat$area/sum(df.habitat$area)
-  
-  ## a) weights for present habitat-year combinations
-  ###################################################-
-  
-  if(by_spec == FALSE) {
+    df.habitat$target  <- df.habitat$area/sum(df.habitat$area)
+  }
       
-    ## calculate actual share
-    #########################-
-    df.data$habitat <- df.data[, habitat]
-    df.data$ID      <- df.data[, ID]
-    df.data$year    <- df.data[, year]
+  ## calculate actual share
+  #########################-
+  df.data$habitat <- df.data[, habitat]
+  df.data$ID      <- df.data[, ID]
+  df.data$year    <- df.data[, year]
+  
+  ## define columns based on by_reg and by_spec
+  if(by_reg == TRUE) {
+    df.data$region    <- df.data[, region]
     
-    ## number of sites per habitat and year
-    df.data2 <- unique(df.data[, c("ID", "year", "habitat")])
-    N.sites  <- as.data.frame(df.data2 %>% group_by(year, habitat) %>% summarize(N.sites = n(), .groups = "drop"))
-    
-    ## actual share
-    N.sites$actual <- NA
-    for(y in unique(N.sites$year)) {
-      N.sites$actual[N.sites$year == y] <- N.sites$N.sites[N.sites$year == y]/sum(N.sites$N.sites[N.sites$year == y])
-    }
-    
-    ## check whether habitats are missing
-    #####################################-
-    hab1 <- unique(df.habitat$habitat)
-    hab2 <- unique(df.data2$habitat)
-    
-    for (i in 1:length(hab1)) {
-      if(!(hab1[i] %in% hab2)) warning(paste0("Habitat ", hab1[i], " is not present in df.data. The dataset does not cover all present habitats."))
-    }
-    
-    for (i in 1:length(hab2)) {
-      if(!(hab2[i] %in% hab1)) stop(paste0("Habitat ", hab2[i], " is missing in df.habitat. Unable to calculate weights."))
-    }
-    
-    ## calculate weight
-    ###################-
-    df.w        <- left_join(N.sites, df.habitat[, c("habitat", "target")], by = c("habitat"))
-    df.w$weight <- df.w$target/df.w$actual
-    
-    ## add to dataframe
-    ###################-
-    df.weight <- left_join(df.data, df.w[, c("year", "habitat", "weight")], by = c("year", "habitat"))
+    col.list <- col.list1 <- c("habitat", "region")
+    col.list2 <- c("year", "region")
   }
   
-  ## b) weights for present habitat-year-species combinations
-  ###########################################################-
+  if(by_reg == FALSE) {
+    col.list <- col.list1 <- c("habitat")
+    col.list2 <- c("year")
+  }
   
   if(by_spec == TRUE) {
+    df.data$species    <- df.data[, species]
     
-    ## calculate actual share
-    #########################-
-    df.data$habitat <- df.data[, habitat]
-    df.data$ID      <- df.data[, ID]
-    df.data$year    <- df.data[, year]
-    df.data$species <- df.data[, species]
-    
-    ## number of sites per habitat and year
-    df.data2 <- unique(df.data[, c("ID", "year", "habitat", "species")])
-    N.sites  <- as.data.frame(df.data2 %>% group_by(year, habitat, species) %>% summarize(N.sites = n(), .groups = "drop"))
-    
-    ## actual share
-    N.sites$actual <- NA
-    
-    for(sp in unique(N.sites$species)) {
-      for(y in unique(N.sites$year)) {
-        N.sites$actual[N.sites$year == y & N.sites$species == sp] <- N.sites$N.sites[N.sites$year == y & N.sites$species == sp]/sum(N.sites$N.sites[N.sites$year == y & N.sites$species == sp])
-      }
-    }
-    
-    ## check whether habitats are missing
-    #####################################-
+    col.list <- c(col.list, "species")
+    col.list2 <- c(col.list2, "species")
+  }
+  
+  ## number of sites and actual share per habitat and year (and species) (and region)
+  df.data2 <- unique(df.data[, c("ID", "year", col.list)])
+  N.sites <- df.data2 %>% 
+    group_by_at(c("year", col.list)) %>% 
+    summarize(N.sites = n(), .groups = "drop") %>%
+    ungroup() %>%
+    group_by_at(col.list2) %>%
+    mutate(actual = N.sites/sum(N.sites))
+  
+  ## check whether habitats are missing
+  #####################################-
+  
+  if(by_reg == FALSE) {
     hab1 <- unique(df.habitat$habitat)
     hab2 <- unique(df.data2$habitat)
     
@@ -206,19 +184,39 @@ weight <- function(df.habitat = NULL, habitat = "habitat", area = "area",
     for (i in 1:length(hab2)) {
       if(!(hab2[i] %in% hab1)) stop(paste0("Habitat ", hab2[i], " is missing in df.habitat. Unable to calculate weights."))
     }
+  }
+
+  
+  if(by_reg == TRUE) {
     
-    ## calculate weight
-    ###################-
-    df.w        <- left_join(N.sites, df.habitat[, c("habitat", "target")], by = c("habitat"))
-    df.w$weight <- df.w$target/df.w$actual
-    
-    ## add to dataframe
-    ###################-
-    df.weight <- left_join(df.data, df.w[, c("year", "habitat", "species", "weight")], by = c("year", "habitat", "species"))
+    for(r in unique(df.habitat$region)) {
+      
+      hab1 <- unique(df.habitat$habitat[df.habitat$region == r])
+      hab2 <- unique(df.data2$habitat[df.data2$region == r])
+      
+      for (i in 1:length(hab1)) {
+        if(!(hab1[i] %in% hab2)) warning(paste0("Region '", r, "': Habitat ", hab1[i], " is not present in df.data. The dataset does not cover all present habitats."))
+      }
+      
+      for (i in 1:length(hab2)) {
+        if(!(hab2[i] %in% hab1)) stop(paste0("Region '", r, "': Habitat ", hab2[i], " is missing in df.habitat. Unable to calculate weights."))
+      }
+    }
   }
   
+  
+  ## calculate weight
+  ###################-
+  df.w        <- left_join(N.sites, df.habitat[, c(col.list1, "target")], by = c(col.list1))
+  df.w$weight <- df.w$target/df.w$actual
+  
+  ## add to dataframe
+  ###################-
+  df.weight <- left_join(df.data, df.w[, c("year", col.list, "weight")], by = c("year", col.list))
+
+  ## return data
+  if(add.df) df.w <<- df.w
   return(df.weight)
-  df.w <- df.w
 
 }
 
@@ -261,14 +259,14 @@ weight <- function(df.habitat = NULL, habitat = "habitat", area = "area",
 ## abundance (default = "abundance"): columname of abundance in data
 ## year      (default = "year"):      columname of year in data
 ## OE        (default = 0.25):        threshold for classifying observer effects, should be a value >0 and <1.
-
+## add.df    (default = TRUE):        if TRUE, returns a dataframe with observer effect per site and year
 ## output:
 ##########-
 
-## the function obs.eff returns a dataframe "df.obs.eff" including the implemented raw data "data" 
+## the function obs.eff returns a dataframe including the implemented raw data "data" 
   ## as well as the additionally column for observer effect ("OE_xx") per site and year and the default column "abundance".
 
-## The function additionally returns the dataframe "df.oe" containing observer effects per site and year. 
+## The function optionally returns the dataframe "df.oe" containing observer effects per site and year if df.oe = TRUE. 
 ## This dataframe has the following columns:
   ## ID:            site ID
   ## year:          year of survey
@@ -280,7 +278,8 @@ weight <- function(df.habitat = NULL, habitat = "habitat", area = "area",
 
 
 obs.eff <- function(data = NULL, ID = "ID", abundance = "abundance", year = "year",
-                    OE = 0.25) {
+                    OE = 0.25,
+                    add.df = TRUE) {
   
   require(dplyr)
   
@@ -289,7 +288,7 @@ obs.eff <- function(data = NULL, ID = "ID", abundance = "abundance", year = "yea
   if(!(ID %in% colnames(data)))        stop(paste0("The column '", ID, "' is missing in data"))
   if(!(abundance %in% colnames(data))) stop(paste0("The column '", abundance, "' is missing in data"))
   if(!(year %in% colnames(data)))      stop(paste0("The column '", year, "' is missing in data"))
-  if(OE <= 0 | OE >= 1)                   stop("The threshold OE must be between 0 and 1.")
+  if(OE <= 0 | OE >= 1)                stop("The threshold OE must be between 0 and 1.")
   
   ## define columns
   # data$ID        <- data[, ID]
@@ -305,7 +304,6 @@ obs.eff <- function(data = NULL, ID = "ID", abundance = "abundance", year = "yea
     ungroup() %>%
     mutate(Ab.prop = Ab.total/mean.Ab.total)
     
-
   ## define categories based on threshold OE
   ##########################################-
   df.oe$OE                         <- "none"
@@ -314,9 +312,12 @@ obs.eff <- function(data = NULL, ID = "ID", abundance = "abundance", year = "yea
   
   df.oe$OE <- as.factor(df.oe$OE)
   
+  ## change column names
   colnames(df.oe)[colnames(df.oe) == "OE"] <- paste0("OE_", 100*OE)
   
-  df.oe <<- df.oe
+  ## return data
+  if(add.df) df.oe <<- df.oe
+  
   df.obs.eff <- left_join(data, df.oe[, c(ID, year, paste0("OE_", 100*OE))], by = c(ID, year))
   return(df.obs.eff)
   
@@ -473,8 +474,8 @@ add.zeros <- function(data = NULL, ID.year = "ID.year", species = "species", abu
   cols <- NULL
   cols <- colnames(data)[!colnames(data) %in% c(ID.year, ID.year.dep, species, species.dep, abundance)]
   
-  if(!is.null(cols)) warning(paste0("Column '", cols, "' in data has NAs for all added zeros. Check whether it needs to be added to ID.year.dep or species.dep. 
-"))
+  if(!is.null(cols)) warning(paste0("Column '", cols, "' in data has NAs for all added zeros. Check whether it needs to be added to 'ID.year.dep' or 'species.dep' or add values manually.
+                                    "))
   
   
   return(df.zero)
