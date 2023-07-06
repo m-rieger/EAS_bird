@@ -337,10 +337,11 @@ obs.eff <- function(data = NULL, ID = "ID", abundance = "abundance", year = "yea
 ## input:
 #########-
 
-## model.list   (default = NULL):        list with different models (of one species) for comparisons
-## response     (default = NULL):        name of response variable (character)
-## plot.stats   (default = FALSE):       if TRUE, graphical output is given
-
+## model.list   (default = NULL):              list with different models (of one species) for comparisons
+## model.name   (default = names(model.list)): names of models (e.g. family and zero-inflated coefficients)
+## response     (default = NULL):              name of response variable (character)
+## plot.stats   (default = FALSE):             if TRUE, graphical output is given
+## spec         (default = NULL):              name of species (for title of plot)
 
 ## output:
 ##########-
@@ -351,8 +352,8 @@ obs.eff <- function(data = NULL, ID = "ID", abundance = "abundance", year = "yea
 ## The function optionally returns a graphical output inlcuding the observed value of the raw data 
 ## as well as median with 50% and 95% CrI of the simulated values if plot.stats = TRUE. 
 
-mod.stat <- function(model.list = NULL, response = NULL,
-                     plot.stats = FALSE) {
+mod.stat <- function(model.list = NULL, model.name = NULL, response = NULL,
+                     plot.stats = FALSE, spec = NULL) {
   
   require(brms)
   ## define propZ-function
@@ -360,6 +361,7 @@ mod.stat <- function(model.list = NULL, response = NULL,
   
   if(is.null(model.list))  stop("You need to define the model-list.")
   if(!is.list(model.list)) stop("Model-list must be a list.")
+  if(is.null(model.name)) model.name <- names(model.list)
   if(is.null(response))    stop("You need to define the response.")
 
   ## define df.
@@ -392,10 +394,10 @@ mod.stat <- function(model.list = NULL, response = NULL,
       df.modS$upr97.5[i]  <- quantile(stat_yrep, probs = 0.975)
       df.modS$obs[i]      <- fun(yobs)
       df.modS$BayesP[i]   <- (length(stat_yrep[stat_yrep > fun(yobs)])/length(stat_yrep)) + (length(stat_yrep[stat_yrep == fun(yobs)])/length(stat_yrep)/2)
-      df.modS$model       <- m
+      df.modS$model       <- as.character(model.name[m])
+      df.modS$species     <- spec
     }
-    df.modS$model       <- paste0("mod", m)
-    
+
     df.modS.full <- rbind(df.modS.full, df.modS)
   }
   
@@ -405,14 +407,18 @@ mod.stat <- function(model.list = NULL, response = NULL,
     df.modS.full$Stats <- factor(df.modS.full$Stats, levels = c("prop_zero", "min", "max", "mean", "median", "sd"))
     
     print(ggplot(df.modS.full) +
-      geom_hline(aes(yintercept = obs), color = "blue", size = 2) +
-      geom_pointrange(aes(x = model, ymin = lwr2.5, y = fit, ymax = upr97.5), color = "grey30", size = 2, fatten = 2.5) +
-      geom_pointrange(aes(x = model, ymin = lwr25, y = fit, ymax = upr75), color = "grey30", size = 2, fatten = 2.5, lwd = 2) +
+      geom_hline(aes(yintercept = obs), color = "blue", linewidth = 2) +
+      geom_pointrange(aes(x = model, ymin = lwr2.5, y = fit, ymax = upr97.5), 
+                      color = "grey30", linewidth = 1) +
+      geom_pointrange(aes(x = model, ymin = lwr25, y = fit, ymax = upr75), 
+                      color = "grey30", linewidth = 2, fatten = 8) +
       ylab(paste0("function(", response, ")")) +
       xlab("model") +
-      ggtitle(paste0("model statistics of response variable '", response, "'"), 
-              subtitle = "observed value/raw data (blue line) and simulated values (median with 50% (thick) and  95% (thin) CrI)") +
-      facet_wrap(~ Stats, scales = "free_y"))
+      ggtitle(paste0(sp, " - model statistics of response variable '", response, "'"), 
+              subtitle = "observed value/raw data (blue line) and 
+simulated values (median with 50% (thick) and  95% (thin) CrI)") +
+      facet_wrap(~ Stats, scales = "free_y") +
+      theme_classic())
   }
   
   return(df.modS.full)
@@ -500,10 +506,11 @@ add.zeros <- function(data = NULL, ID.year = "ID.year", species = "species", abu
 ## input:
 #########-
 
-## model.list   (default = NULL):        list with different models (of one species) for comparisons
-## response     (default = NULL):        name of response variable (character)
-## plot.stats   (default = FALSE):       if TRUE, graphical output is given
-
+## model.list   (default = NULL):              list with different models (of one species) for comparisons
+## model.name   (default = names(model.list)): names of models (e.g. family and zero-inflated coefficients)
+## response     (default = NULL):              name of response variable (character)
+## plot.stats   (default = FALSE):             if TRUE, graphical output is given
+## spec         (default = NULL):              name of species (for title of plot)
 
 ## output:
 ##########-
@@ -514,8 +521,8 @@ add.zeros <- function(data = NULL, ID.year = "ID.year", species = "species", abu
 ## The function optionally returns a graphical output inlcuding the observed value of the raw data 
 ## as well as median with 50% and 95% CrI of the simulated values if plot.stats = TRUE. 
 
-mod.conv <- function(model.list = NULL, td = NULL,
-                     plot.conv = FALSE) {
+mod.conv <- function(model.list = NULL, model.name = NULL, td = NULL,
+                     plot.conv = FALSE, spec = NULL) {
   
   require(brms)
   require(tidyverse)
@@ -523,6 +530,7 @@ mod.conv <- function(model.list = NULL, td = NULL,
 
   if(is.null(model.list))  stop("You need to define the model-list.")
   if(!is.list(model.list)) stop("Model-list must be a list.")
+  if(is.null(model.name)) model.name <- names(model.list)
   if(is.null(td))          stop("You need to define the maximum treedepth 'td'.")
   
   df.modS.full <- NULL
@@ -554,7 +562,8 @@ mod.conv <- function(model.list = NULL, td = NULL,
     df.modS$value[df.modS$conv == "max. td"]    <- max(nuts$Value[nuts$Parameter == "treedepth__"])
     df.modS$Nthres[df.modS$conv == "div.trans"]   <- length(nuts$Value[nuts$Parameter == "divergent__" & nuts$Value == 1])
     df.modS$Nthres[df.modS$conv == "max. td"]    <- length(nuts$Value[nuts$Parameter == "treedepth__" & nuts$Value > td])
-    df.modS$model          <- paste0("mod", m)
+    df.modS$model          <- as.character(model.name[m])
+    df.modS$species        <- spec
     
     df.modS.full <- rbind(df.modS.full, df.modS)
     
@@ -572,12 +581,13 @@ mod.conv <- function(model.list = NULL, td = NULL,
             geom_point(aes(x = model, y = value,), color = df.modS.full$color, size = 2) +
             ylab(paste0("value")) +
             xlab("model") +
-            ggtitle("model convergence", 
-                    subtitle = "As long as the values are between the solid and dashed line (grey dots), model convergence is fine. 
-The closer to the solid line, the better.") +
-            facet_wrap(~ conv, scales = "free_y"))
+            ggtitle(paste0(spec, " - model convergence"), 
+                    subtitle = "As long as the values are between the solid and dashed line (grey dots), 
+model convergence is fine. The closer to the solid line, the better.") +
+            facet_wrap(~ conv, scales = "free_y") +
+            theme_classic())
   }
   
-  return(df.modS.full)
+  return(select(df.modS.full, select = - color))
   
 }

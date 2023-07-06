@@ -27,6 +27,9 @@ library(brms)  # for models (brm())
 library(pracma) # for factor loading rotation (PCA)
 library(parallel) # detectCores()
 
+library(plotly)
+library(ggbeeswarm)
+
 #install.packages("cmdstanr", repos = c("https://mc-stan.org/r-packages/", getOption("repos")))
 csr <- require(cmdstanr) # for core/chain parallelisation, if not installed, chains will not be parallized
 set_cmdstan_path(path = "~/cmdstan")
@@ -54,6 +57,13 @@ source("./R/OEFS_Paper_Functions.R")
 ## define first (year1) and last year (yearx)
 year1 <- 2002
 yearx <- 2020
+
+## define baseline year (for index)
+yearI <- 2006
+
+## define time range for longterm trend and last year or the range
+period <- 12
+yearP <- yearx-1 # here: 2019
 
 ## define some model parameters
 ## --> do you want to do a (faster) test run, e.g. with fewer chains and iterations (TRUE) or the original run with (FALSE)?
@@ -261,6 +271,7 @@ df.spec[5, 1] <- "Common Chiffchaff"
 df.spec[5, 3] <- "both"
 df.spec[5, 4] <- "R"
 df.spec[5, 5] <- "zip"
+df.spec[5, 6] <- "no"
 ##########################################-
 
 ## create list of species which you want to model, either
@@ -439,24 +450,253 @@ for (sp in spec.list) {
     
    
     ## save model
-    saveRDS(mod, paste0("./01_models/mod_", sp, "_", zi.type, mod.fam, "_R", mod.bgr, "_", year1, "-", yearx, ".RDS"))
+    saveRDS(mod, paste0("./01_models/mod_", sp, "_", zi.type,  mod.fam, "_R", mod.bgr, "_", year1, "-", yearx, ".RDS"))
     
   } # end of for-loop (model)
 } # end of for-loop (species)
 
-  
-## in fact it should work but I need to check the models on the 16 core compute. Afterwards add some model evaluations and graphs
 
+#### 6) model conversion and stats ####
+#######################################-
+
+## check model conversion and different stats to chose the best fitting model structure
 
 for(sp in spec.list){
   
   mod.list <- list.files(path = "./01_models", pattern = sp)
   mods <- list()
-  for(i in 1:length(mod.list))  mods[[i]]  <- readRDS(paste0("./01_models/", mod.list[i]))
-
-  print(sp)
-  print(mod.stat(model.list = mods, response = "ab.c", plot.stats = T))
-  print(mod.conv(model.list = mods, td = max.td, plot.conv = T))
+  for(i in 1:length(mod.list))  {
+    m <- unlist(strsplit(mod.list[i], split = "_"))[3]
+    mods[[m]]  <- readRDS(paste0("./01_models/", mod.list[i]))
+  }
   
+  print(sp)
+  print(mod.stat(model.list = mods, model.name = names(mods), 
+                 response = "ab.c", 
+                 plot.stats = T,
+                 spec = sp))
+  print(mod.conv(model.list = mods, model.name = names(mods), 
+                 td = max.td, 
+                 plot.conv = T,
+                 spec = sp))
+
 } 
+
+
+#### 7) posterior predictions ####
+##################################-
+
+## get posterior predictions (trends, indices, longterm trends)
+newdat.total <- NULL
+lt.total     <- NULL
+data.total   <- NULL
+
+for(sp in spec.list) {
+  
+  mod.bgr     <- df.spec$modR[df.spec$species == sp   & df.spec$modFINAL == "yes"]
+  mod.fam     <- df.spec$modFAM[df.spec$species == sp & df.spec$modFINAL == "yes"]
+  zi.type     <- df.spec$modZI[df.spec$species == sp  & df.spec$modFINAL == "yes"] 
+  
+  ## create newdat file
+  
+  mod <- readRDS(paste0("./01_models/mod_", sp, "_", zi.type,  mod.fam, "_R", mod.bgr, "_", year1, "-", yearx, ".RDS"))
+  S.dat <- mod$data
+  S.dat$year <- S.dat$year.s + year1
+  
+  if(mod.bgr %in% c("atl", "kon")) S.dat$region <- mod.bgr
+  
+  if(mod.bgr == "both") {
+    newdat <- expand.grid(year.s = seq(year1-year1, yearx-year1, length = 4*(yearx-year1)+1),
+                          region = levels(as.factor(c("atl", "kon"))),
+                          OE_25  = "none",
+                          PC1r   = mean(S.dat$PC1r),  
+                          PC2r   = mean(S.dat$PC2r),  
+                          PC3r   = mean(S.dat$PC3r))
+  }
+  
+  if(mod.bgr %in% c("atl", "kon")) {
+    newdat <- expand.grid(year.s = seq(year1-year1, yearx-year1, length = 4*(yearx-year1)+1),
+                          region = as.factor(mod.bgr),
+                          OE_25  = "none",
+                          PC1r   = mean(S.dat$PC1r),  
+                          PC2r   = mean(S.dat$PC2r),  
+                          PC3r   = mean(S.dat$PC3r))
+  }
+  
+  newdat$year <- newdat$year.s + year1
+  
+  ## create newdat2 file for slope significance
+  epsilon <- 0.0001
+  newdat2  <- newdat  %>% mutate(year.s = year.s + epsilon)
+  
+  ## extract predictions
+  ######################
+  
+  ## subset predictions and newdat in lists, add overall predictions weighted by proportion of atl and kon in NRW
+  pred.list   <- NULL
+  pred2.list  <- NULL
+  newdat.list <- NULL
+  
+  if(mod.bgr %in% c("both", "atl")) {
+    pred.list[["atl"]]       <- as.data.frame(t(fitted(mod, newdata = newdat,  summary = FALSE, re_formula = NA))[newdat$region == "atl",])
+    pred2.list[["atl"]]      <- as.data.frame(t(fitted(mod, newdata = newdat2,  summary = FALSE, re_formula = NA))[newdat$region == "atl",])
+    newdat.list[["atl"]]     <- newdat[newdat$region == "atl",]
+  }
+  
+  if(mod.bgr %in% c("both", "kon")) {
+    pred.list[["kon"]]       <- as.data.frame(t(fitted(mod, newdata = newdat,  summary = FALSE, re_formula = NA))[newdat$region == "kon",])
+    pred2.list[["kon"]]      <- as.data.frame(t(fitted(mod, newdata = newdat2,  summary = FALSE, re_formula = NA))[newdat$region == "kon",])
+    newdat.list[["kon"]]     <- newdat[newdat$region == "kon",]
+  }
+  
+  if(mod.bgr == "both") {
+    pred.list[["overall"]]   <- pred.list[["atl"]]*0.555 + pred.list[["kon"]]*0.445 
+    pred2.list[["overall"]]  <- pred2.list[["atl"]]*0.555 + pred2.list[["kon"]]*0.445
+    newdat.list[["overall"]] <- newdat.list[["kon"]]
+    newdat.list[["overall"]]$region <- "overall"
+  }
+  
+  for (r in names(pred.list)) {
+    pred.r   <- pred.list[[r]]
+    pred2.r  <- pred2.list[[r]]
+    newdat.r <- newdat.list[[r]]
+    
+    ##############################################################################
+    ## trend & 95% CrI
+    ##############################################################################
+    newdat.r$lwr <- apply(X = pred.r, MARGIN = 1, FUN = quantile, prob = 0.025)
+    newdat.r$fit <- apply(X = pred.r, MARGIN = 1, FUN = quantile, prob = 0.5)
+    newdat.r$upr <- apply(X = pred.r, MARGIN = 1, FUN = quantile, prob = 0.975)
+
+    ## Calculate the difference and divide by epsilon - this is analogous to dx/dt
+    diff <- (pred2.r - pred.r) /epsilon
+
+    ## using the differences, we calculate the mean and lower and upper quantiles
+    newdat.r$lwr.diff  <- apply(diff, MARGIN = 1, FUN = quantile, prob = 0.025)
+    newdat.r$fit.diff  <- apply(diff, MARGIN = 1, FUN = quantile, prob = 0.5)
+    newdat.r$upr.diff  <- apply(diff, MARGIN = 1, FUN = quantile, prob = 0.975)
+
+    newdat.r$incr     <- NA; newdat.r$decr     <- NA
+    newdat.r$fit.incr <- NA; newdat.r$fit.decr <- NA
+
+    ## select slope parts with sign. increase/decrease (95% CrI of slope does not include 0)
+    newdat.r$incr[newdat.r$fit.diff > 0 & newdat.r$lwr.diff > 0] <- newdat.r$fit.diff[newdat.r$fit.diff > 0 & newdat.r$lwr.diff > 0]
+    newdat.r$decr[newdat.r$fit.diff < 0 & newdat.r$upr.diff < 0] <- newdat.r$fit.diff[newdat.r$fit.diff < 0 & newdat.r$upr.diff < 0]
+    newdat.r$fit.incr[!is.na(newdat.r$incr)] <- newdat.r$fit[!is.na(newdat.r$incr)] # this is needed for plotting only
+    newdat.r$fit.decr[!is.na(newdat.r$decr)] <- newdat.r$fit[!is.na(newdat.r$decr)] # this is needed for plotting only
+
+    ##############################################################################
+    ## index
+    ##############################################################################
+    pred.i <- matrix(nrow = nrow(pred.r), ncol = ncol(pred.r))
+
+    for (i in 1:ncol(pred.r)) {pred.i[,i] <- pred.r[,i]/pred.r[newdat.r$year == yearI,i]}
+
+    pred.i <- pred.r/apply(X = pred.r[newdat.r$year == yearI,], MARGIN = 1, FUN = quantile, probs = 0.5)
+
+    newdat.r$lwr.i <- apply(X = pred.i, MARGIN = 1, FUN = quantile, probs = 0.025)
+    newdat.r$fit.i <- apply(X = pred.i, MARGIN = 1, FUN = quantile, probs = 0.5)
+    newdat.r$upr.i <- apply(X = pred.i, MARGIN = 1, FUN = quantile, probs = 0.975)
+
+    ##############################################################################
+    ## longterm change
+    ##############################################################################
+    diff.lt <- pred.r[newdat.r$year == yearP,] - pred.r[newdat.r$year == yearP-period,]
+
+    lt.tbl <- data.frame(region = r)
+    lt.tbl$lwr    <- apply(X = diff.lt, MARGIN = 1, FUN = quantile, prob = 0.025)
+    lt.tbl$fit    <- apply(X = diff.lt, MARGIN = 1, FUN = quantile, prob = 0.5)
+    lt.tbl$upr    <- apply(X = diff.lt, MARGIN = 1, FUN = quantile, prob = 0.975)
+    lt.tbl$BayesP <- length(diff.lt[diff.lt > 0])/length(diff.lt)
+    
+    
+    ## merge data
+    newdat.r$species <- sp
+    lt.tbl$species   <- sp
+    newdat.total  <- rbind(newdat.total, newdat.r)
+    lt.total      <- rbind(lt.total, lt.tbl)
+
+  } ## end of region loop
+  
+  ## plot posterior predictions
+  
+  g <- ggplot() +
+
+    # add horizontal line at y = 0
+    geom_hline(yintercept = 0, lty = "dashed") +
+
+    # add raw data (grey dots)
+    geom_beeswarm(data = S.dat, aes(x = year, y = ab.c, color = region), 
+                  size = 0.5, cex = 0.3, alpha = 0.5) +
+
+    # add trend
+    geom_ribbon(data = newdat.total[newdat.total$species == sp,], aes(x = year, ymin = lwr, ymax = upr, color = region, fill = region), alpha = 0.3) +
+    geom_line(data = newdat.total[newdat.total$species == sp,], aes(x = year, y = fit, color = region), lwd = 1) +
+
+    # add sign. slope
+    geom_line(aes(year, fit.incr, group = region), data = newdat.total[newdat.total$species == sp,], col = "black", lty = 1, size = 1, na.rm = T) +
+    geom_line(aes(year, fit.decr, group = region), data = newdat.total[newdat.total$species == sp,], col = "black", lty = 1, size = 1, na.rm = T) +
+
+
+    # add labs
+    ylim(0, max(c(S.dat$ab.c, newdat.total$upr[newdat.total$species == sp]))) +
+    labs(x = "year", y = "abundance per km²", title = sp) +
+    theme_classic(base_size = 15)
+
+  
+  if(mod.bgr == "both") {
+    g <- g +
+      scale_color_manual(values = c("atl" = "blue", "kon" = "orange", "overall" = "grey40")) +
+      scale_fill_manual(values = c("atl" = "blue", "kon" = "orange", "overall" = "grey40"))
+  }
+  
+  if(mod.bgr == "atl") {
+    g <- g +
+      scale_color_manual(values = c("atl" = "blue")) +
+      scale_fill_manual(values = c("atl" = "blue"))
+  }
+  
+  if(mod.bgr == "kon") {
+    g <- g +
+      scale_color_manual(values = c("kon" = "orange")) +
+      scale_fill_manual(values = c("kon" = "orange"))
+  }
+  
+  print(ggplotly(g, width = 700, height = 400, dynamicTicks = T))
+
+
+  
+  g <- ggplot(newdat.total[newdat.total$species == sp,], 
+              aes(x = year, y = fit.i, ymin = lwr.i, ymax = upr.i)) +
+    geom_hline(yintercept = 0, show.legend = FALSE, linetype = "dashed") +
+    geom_hline(yintercept = 1, show.legend = FALSE, linetype = "dashed") +
+    geom_line(aes(color = region), lwd = 1) +
+    geom_ribbon(aes(color = region, fill = region), alpha = 0.2) + # add show.legend = FALSE
+    ylim(0, max(newdat.total$upr.i[newdat.total$species == sp])) +
+    labs(y = "Index", x = "survey year") + theme_classic(base_size = 15) +
+    ggtitle(sp)
+  
+  if(mod.bgr == "both") {
+    g <- g +
+      scale_color_manual(values = c("atl" = "blue", "kon" = "orange", "overall" = "grey40")) +
+      scale_fill_manual(values = c("atl" = "blue", "kon" = "orange", "overall" = "grey40"))
+  }
+  
+  if(mod.bgr == "atl") {
+    g <- g +
+      scale_color_manual(values = c("atl" = "blue")) +
+      scale_fill_manual(values = c("atl" = "blue"))
+  }
+  
+  if(mod.bgr == "kon") {
+    g <- g +
+      scale_color_manual(values = c("kon" = "orange")) +
+      scale_fill_manual(values = c("kon" = "orange"))
+  }
+  
+  print(ggplotly(g, width = 700, height = 400, dynamicTicks = T))
+  
+} ## end of species loop
+
+## plot posterior predictions
 
