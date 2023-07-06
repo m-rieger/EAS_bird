@@ -6,6 +6,7 @@
   # 2023-06-03 (MR): added add.zeros-function
   # 2023-06-16 (MR): added option (FALSE/TRUE) to obs.eff and weight to get additional dataframe or not
   #                  and updated weight-function to calculate weights per region, too
+  # 2023-07-03 (MR): added some details to mod.stat()
 
 ## content:
   ##
@@ -260,6 +261,7 @@ weight <- function(df.habitat = NULL, habitat = "habitat", area = "area",
 ## year      (default = "year"):      columname of year in data
 ## OE        (default = 0.25):        threshold for classifying observer effects, should be a value >0 and <1.
 ## add.df    (default = TRUE):        if TRUE, returns a dataframe with observer effect per site and year
+
 ## output:
 ##########-
 
@@ -335,16 +337,19 @@ obs.eff <- function(data = NULL, ID = "ID", abundance = "abundance", year = "yea
 ## input:
 #########-
 
+## model.list   (default = NULL):        list with different models (of one species) for comparisons
+## response     (default = NULL):        name of response variable (character)
+## plot.stats   (default = FALSE):       if TRUE, graphical output is given
+
+
 ## output:
 ##########-
 
-# setwd("D:/Uni/Masterarbeit/OEFS_Brutvogel")
-# mod  <- readRDS("./01_Modelle/OEFS_Modell_Fitis_PCAFzip_Rboth_2002-2019.RDS")
-# mod2 <- readRDS("./01_Modelle/OEFS_Modell_Fitis_PCAFzip_Rboth_2002-2020.RDS")
-# 
-# model.list <- list(mod, mod2)
-# response   <- "Ab.c"
-# plot.stats = TRUE
+## the function mod.stat returns a dataframe including model statistics (different quantiles of simulated values, observed value, BayesP-value) 
+## for the proportion of zeros, minimum, maximum, mean, median, and SD of the response variable for different models
+
+## The function optionally returns a graphical output inlcuding the observed value of the raw data 
+## as well as median with 50% and 95% CrI of the simulated values if plot.stats = TRUE. 
 
 mod.stat <- function(model.list = NULL, response = NULL,
                      plot.stats = FALSE) {
@@ -358,8 +363,8 @@ mod.stat <- function(model.list = NULL, response = NULL,
   if(is.null(response))    stop("You need to define the response.")
 
   ## define df.
-  df.modS  <- data.frame(Stats = c("prop_zero", "mean", "median", "sd", "max", "min"))
-  fun.list <-                  list(prop_zero,   mean,   median,   sd,   max,   min)
+  df.modS  <- data.frame(Stats = c("prop_zero", "min", "max", "mean", "median", "sd"))
+  fun.list <-                  list(prop_zero,   min,   max,   mean,   median,   sd)
   
   df.modS.full <- NULL
   
@@ -378,11 +383,13 @@ mod.stat <- function(model.list = NULL, response = NULL,
       
       stat_yrep <- apply(yrep, 1, fun)
       
-      df.modS$lwr2.5[i]   <- quantile(stat_yrep, probs = 0.025 )
-      df.modS$lwr5[i]     <- quantile(stat_yrep, probs = 0.05 )
-      df.modS$fit[i]      <- quantile(stat_yrep, probs = 0.5 )
-      df.modS$upr95[i]    <- quantile(stat_yrep, probs = 0.95 )
-      df.modS$upr97.5[i]  <- quantile(stat_yrep, probs = 0.975 )
+      df.modS$lwr2.5[i]   <- quantile(stat_yrep, probs = 0.025)
+      df.modS$lwr5[i]     <- quantile(stat_yrep, probs = 0.05)
+      df.modS$lwr25[i]    <- quantile(stat_yrep, probs = 0.25) 
+      df.modS$fit[i]      <- quantile(stat_yrep, probs = 0.5)
+      df.modS$upr75[i]    <- quantile(stat_yrep, probs = 0.75) 
+      df.modS$upr95[i]    <- quantile(stat_yrep, probs = 0.95)
+      df.modS$upr97.5[i]  <- quantile(stat_yrep, probs = 0.975)
       df.modS$obs[i]      <- fun(yobs)
       df.modS$BayesP[i]   <- (length(stat_yrep[stat_yrep > fun(yobs)])/length(stat_yrep)) + (length(stat_yrep[stat_yrep == fun(yobs)])/length(stat_yrep)/2)
       df.modS$model       <- m
@@ -400,9 +407,11 @@ mod.stat <- function(model.list = NULL, response = NULL,
     print(ggplot(df.modS.full) +
       geom_hline(aes(yintercept = obs), color = "blue", size = 2) +
       geom_pointrange(aes(x = model, ymin = lwr2.5, y = fit, ymax = upr97.5), color = "grey30", size = 2, fatten = 2.5) +
+      geom_pointrange(aes(x = model, ymin = lwr25, y = fit, ymax = upr75), color = "grey30", size = 2, fatten = 2.5, lwd = 2) +
       ylab(paste0("function(", response, ")")) +
       xlab("model") +
-      ggtitle("model statistics of response variable", subtitle = "observed value/raw data (blue line) and simulated values (median and 95% CrI)") +
+      ggtitle(paste0("model statistics of response variable '", response, "'"), 
+              subtitle = "observed value/raw data (blue line) and simulated values (median with 50% (thick) and  95% (thin) CrI)") +
       facet_wrap(~ Stats, scales = "free_y"))
   }
   
@@ -480,4 +489,95 @@ add.zeros <- function(data = NULL, ID.year = "ID.year", species = "species", abu
   
   return(df.zero)
 
+}
+
+
+######################################################-
+#### 5) View model convergence (Rhat, NEff, ...)  ####
+######################################################-
+
+
+## input:
+#########-
+
+## model.list   (default = NULL):        list with different models (of one species) for comparisons
+## response     (default = NULL):        name of response variable (character)
+## plot.stats   (default = FALSE):       if TRUE, graphical output is given
+
+
+## output:
+##########-
+
+## the function mod.stat returns a dataframe including model statistics (different quantiles of simulated values, observed value, BayesP-value) 
+## for the proportion of zeros, minimum, maximum, mean, median, and SD of the response variable for different models
+
+## The function optionally returns a graphical output inlcuding the observed value of the raw data 
+## as well as median with 50% and 95% CrI of the simulated values if plot.stats = TRUE. 
+
+mod.conv <- function(model.list = NULL, td = NULL,
+                     plot.conv = FALSE) {
+  
+  require(brms)
+  require(tidyverse)
+  require(bayestestR)
+
+  if(is.null(model.list))  stop("You need to define the model-list.")
+  if(!is.list(model.list)) stop("Model-list must be a list.")
+  if(is.null(td))          stop("You need to define the maximum treedepth 'td'.")
+  
+  df.modS.full <- NULL
+  
+  for (m in 1:length(model.list)) {
+    
+    df.modS  <- data.frame(conv = c("max. Rhat", "min. Neff", "max. MCSE / SD", "div.trans", "max. td"), value = NA, Nthres = NA,
+                           base = c(1, 1, 0, 0, 0),
+                           threshold = c(1.01, 0.1, 0.1, 1, td),
+                           color = "grey30")
+    
+    # rhat, neff, mcse
+    df.modS$value[df.modS$conv == "max. Rhat"]  <-  max(rhat(model.list[[m]]))
+    df.modS$Nthres[df.modS$conv == "max. Rhat"] <-  sum(rhat(model.list[[m]]) >= 1.01)
+    
+    df.modS$value[df.modS$conv == "min. Neff"]   <- min(neff_ratio(model.list[[m]]))
+    df.modS$Nthres[df.modS$conv == "min. Neff"]  <- sum(neff_ratio(model.list[[m]]) <= 0.1)
+    
+    ps.df <- as.data.frame(apply(X = as.data.frame(model.list[[m]]), MARGIN = 2, FUN = sd))
+    colnames(ps.df)[1] <- "sd"; ps.df$Parameter <- row.names(ps.df)
+    mcse <- left_join(mcse(model.list[[m]], effects = "all", component = "all"), ps.df, by = "Parameter")
+    
+    df.modS$value[df.modS$conv == "max. MCSE / SD"]  <- max(mcse$MCSE / mcse$sd)
+    df.modS$Nthres[df.modS$conv == "max. MCSE / SD"] <- sum((mcse$MCSE / mcse$sd) >= 0.1)
+    
+    # div. trans, treedepth
+    nuts <- nuts_params(model.list[[m]])
+    df.modS$value[df.modS$conv == "div.trans"]   <- max(nuts$Value[nuts$Parameter == "divergent__"])
+    df.modS$value[df.modS$conv == "max. td"]    <- max(nuts$Value[nuts$Parameter == "treedepth__"])
+    df.modS$Nthres[df.modS$conv == "div.trans"]   <- length(nuts$Value[nuts$Parameter == "divergent__" & nuts$Value == 1])
+    df.modS$Nthres[df.modS$conv == "max. td"]    <- length(nuts$Value[nuts$Parameter == "treedepth__" & nuts$Value > td])
+    df.modS$model          <- paste0("mod", m)
+    
+    df.modS.full <- rbind(df.modS.full, df.modS)
+    
+  }  
+  
+  df.modS.full$color[df.modS.full$Nthres >= 1] <- "orange" 
+  
+  if(plot.conv == TRUE) {
+    require(ggplot2) 
+    df.modS.full$conv <- factor(df.modS.full$conv, levels = c("max. Rhat", "min. Neff", "max. MCSE / SD", "div.trans", "max. td"))
+    
+    print(ggplot(df.modS.full) +
+            geom_hline(aes(yintercept = base), color = "grey20", lty = "solid") +
+            geom_hline(aes(yintercept = threshold), color = "grey20", lty = "dashed") +
+            geom_point(aes(x = model, y = value,), color = df.modS.full$color, size = 2) +
+            ylab(paste0("value")) +
+            xlab("model") +
+            ggtitle("model convergence", 
+                    subtitle = "As long as the values are between the solid and dashed line (grey dots), model convergence is fine. 
+The closer to the solid line, the better.") +
+            facet_wrap(~ conv, scales = "free_y"))
+  }
+  
+  return(df.modS.full)
+  
 }

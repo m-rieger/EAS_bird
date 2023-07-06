@@ -6,6 +6,7 @@
 ## latest update: 2023-06-16 (MR)
   # 2023-06-03 (MR): created script based on MA script
   # 2023-06-16 (MR): initial commit GitHub
+  # 2023-07-03 (MR): add posterior predictions
 
 
 #### 0) about this script ####
@@ -28,7 +29,7 @@ library(parallel) # detectCores()
 
 #install.packages("cmdstanr", repos = c("https://mc-stan.org/r-packages/", getOption("repos")))
 csr <- require(cmdstanr) # for core/chain parallelisation, if not installed, chains will not be parallized
-#set_cmdstan_path(path = "~/cmdstan")
+set_cmdstan_path(path = "~/cmdstan")
 
 # define backend and cores based on whether cmdstanr is installed or not
 cores <- detectCores() # get the number of cores for parallelization
@@ -445,4 +446,17 @@ for (sp in spec.list) {
 
   
 ## in fact it should work but I need to check the models on the 16 core compute. Afterwards add some model evaluations and graphs
+
+
+for(sp in spec.list){
+  
+  mod.list <- list.files(path = "./01_models", pattern = sp)
+  mods <- list()
+  for(i in 1:length(mod.list))  mods[[i]]  <- readRDS(paste0("./01_models/", mod.list[i]))
+
+  print(sp)
+  print(mod.stat(model.list = mods, response = "ab.c", plot.stats = T))
+  print(mod.conv(model.list = mods, td = max.td, plot.conv = T))
+  
+} 
 
