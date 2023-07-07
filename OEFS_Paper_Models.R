@@ -9,12 +9,6 @@
   # 2023-07-03 (MR): add posterior predictions
 
 
-#### 0) about this script ####
-##############################-
-
-  # siehe "Anleitung zur Brutvogel-Trendanalyse im Rahmen der  OEFS.csv"
-
-
 #### 1) preparations ####
 #########################-
 
@@ -32,7 +26,7 @@ library(ggbeeswarm)
 
 #install.packages("cmdstanr", repos = c("https://mc-stan.org/r-packages/", getOption("repos")))
 csr <- require(cmdstanr) # for core/chain parallelisation, if not installed, chains will not be parallized
-set_cmdstan_path(path = "~/cmdstan")
+#set_cmdstan_path(path = "~/cmdstan")
 
 # define backend and cores based on whether cmdstanr is installed or not
 cores <- detectCores() # get the number of cores for parallelization
@@ -456,10 +450,11 @@ for (sp in spec.list) {
 } # end of for-loop (species)
 
 
-#### 6) model conversion and stats ####
-#######################################-
+#### 6) posterior predictive checks and model convergence ####
+##############################################################-
 
-## check model conversion and different stats to chose the best fitting model structure
+## check model convergence and posterior predictions of response variable 
+## to chose the best fitting model structure
 
 for(sp in spec.list){
   
@@ -470,11 +465,13 @@ for(sp in spec.list){
     mods[[m]]  <- readRDS(paste0("./01_models/", mod.list[i]))
   }
   
-  print(sp)
+  ## posterior predictions of response variable
   print(mod.stat(model.list = mods, model.name = names(mods), 
                  response = "ab.c", 
                  plot.stats = T,
                  spec = sp))
+  
+  ## model convergence
   print(mod.conv(model.list = mods, model.name = names(mods), 
                  td = max.td, 
                  plot.conv = T,
@@ -489,22 +486,26 @@ for(sp in spec.list){
 ## get posterior predictions (trends, indices, longterm trends)
 newdat.total <- NULL
 lt.total     <- NULL
-data.total   <- NULL
 
 for(sp in spec.list) {
+  
+  ## check final model
+  if(nrow(df.spec[df.spec$species == sp & df.spec$modFINAL == "yes",]) > 1) stop(paste0("There is more than one final model for '", sp, "'."))
+  if(nrow(df.spec[df.spec$species == sp & df.spec$modFINAL == "yes",]) < 1) stop(paste0("There is no final model for '", sp, "'."))
   
   mod.bgr     <- df.spec$modR[df.spec$species == sp   & df.spec$modFINAL == "yes"]
   mod.fam     <- df.spec$modFAM[df.spec$species == sp & df.spec$modFINAL == "yes"]
   zi.type     <- df.spec$modZI[df.spec$species == sp  & df.spec$modFINAL == "yes"] 
   
-  ## create newdat file
-  
+  ## get final model and raw data
   mod <- readRDS(paste0("./01_models/mod_", sp, "_", zi.type,  mod.fam, "_R", mod.bgr, "_", year1, "-", yearx, ".RDS"))
   S.dat <- mod$data
   S.dat$year <- S.dat$year.s + year1
   
+  ## add region (for plotting colors per region)
   if(mod.bgr %in% c("atl", "kon")) S.dat$region <- mod.bgr
   
+  ## create newdat for model predictions
   if(mod.bgr == "both") {
     newdat <- expand.grid(year.s = seq(year1-year1, yearx-year1, length = 4*(yearx-year1)+1),
                           region = levels(as.factor(c("atl", "kon"))),
@@ -523,16 +524,14 @@ for(sp in spec.list) {
                           PC3r   = mean(S.dat$PC3r))
   }
   
+  
   newdat$year <- newdat$year.s + year1
   
   ## create newdat2 file for slope significance
   epsilon <- 0.0001
   newdat2  <- newdat  %>% mutate(year.s = year.s + epsilon)
   
-  ## extract predictions
-  ######################
-  
-  ## subset predictions and newdat in lists, add overall predictions weighted by proportion of atl and kon in NRW
+  ## extract predictions and newdat in lists, add overall predictions weighted by proportion of atl and kon in NRW
   pred.list   <- NULL
   pred2.list  <- NULL
   newdat.list <- NULL
@@ -556,14 +555,14 @@ for(sp in spec.list) {
     newdat.list[["overall"]]$region <- "overall"
   }
   
+  ## loop through regions
   for (r in names(pred.list)) {
     pred.r   <- pred.list[[r]]
     pred2.r  <- pred2.list[[r]]
     newdat.r <- newdat.list[[r]]
     
-    ##############################################################################
     ## trend & 95% CrI
-    ##############################################################################
+    ##################-
     newdat.r$lwr <- apply(X = pred.r, MARGIN = 1, FUN = quantile, prob = 0.025)
     newdat.r$fit <- apply(X = pred.r, MARGIN = 1, FUN = quantile, prob = 0.5)
     newdat.r$upr <- apply(X = pred.r, MARGIN = 1, FUN = quantile, prob = 0.975)
@@ -585,9 +584,8 @@ for(sp in spec.list) {
     newdat.r$fit.incr[!is.na(newdat.r$incr)] <- newdat.r$fit[!is.na(newdat.r$incr)] # this is needed for plotting only
     newdat.r$fit.decr[!is.na(newdat.r$decr)] <- newdat.r$fit[!is.na(newdat.r$decr)] # this is needed for plotting only
 
-    ##############################################################################
-    ## index
-    ##############################################################################
+    ## index & 95% CrI
+    ##################-
     pred.i <- matrix(nrow = nrow(pred.r), ncol = ncol(pred.r))
 
     for (i in 1:ncol(pred.r)) {pred.i[,i] <- pred.r[,i]/pred.r[newdat.r$year == yearI,i]}
@@ -598,14 +596,15 @@ for(sp in spec.list) {
     newdat.r$fit.i <- apply(X = pred.i, MARGIN = 1, FUN = quantile, probs = 0.5)
     newdat.r$upr.i <- apply(X = pred.i, MARGIN = 1, FUN = quantile, probs = 0.975)
 
-    ##############################################################################
-    ## longterm change
-    ##############################################################################
+    ## longterm change & 95% CrI
+    ############################-
     diff.lt <- pred.r[newdat.r$year == yearP,] - pred.r[newdat.r$year == yearP-period,]
 
     lt.tbl <- data.frame(region = r)
     lt.tbl$lwr    <- apply(X = diff.lt, MARGIN = 1, FUN = quantile, prob = 0.025)
+    lt.tbl$lwr25  <- apply(X = diff.lt, MARGIN = 1, FUN = quantile, prob = 0.25)
     lt.tbl$fit    <- apply(X = diff.lt, MARGIN = 1, FUN = quantile, prob = 0.5)
+    lt.tbl$upr75  <- apply(X = diff.lt, MARGIN = 1, FUN = quantile, prob = 0.75)
     lt.tbl$upr    <- apply(X = diff.lt, MARGIN = 1, FUN = quantile, prob = 0.975)
     lt.tbl$BayesP <- length(diff.lt[diff.lt > 0])/length(diff.lt)
     
@@ -613,90 +612,151 @@ for(sp in spec.list) {
     ## merge data
     newdat.r$species <- sp
     lt.tbl$species   <- sp
-    newdat.total  <- rbind(newdat.total, newdat.r)
-    lt.total      <- rbind(lt.total, lt.tbl)
+    newdat.total     <- rbind(newdat.total, newdat.r)
+    lt.total         <- rbind(lt.total, lt.tbl)
 
   } ## end of region loop
   
   ## plot posterior predictions
+  #############################-
   
+  ## plot abundance trend
   g <- ggplot() +
 
     # add horizontal line at y = 0
-    geom_hline(yintercept = 0, lty = "dashed") +
+    geom_hline(yintercept = 0, lty = "dashed", linewidth = 0.5) +
 
-    # add raw data (grey dots)
+    # add raw data (colored dots)
     geom_beeswarm(data = S.dat, aes(x = year, y = ab.c, color = region), 
                   size = 0.5, cex = 0.3, alpha = 0.5) +
 
     # add trend
-    geom_ribbon(data = newdat.total[newdat.total$species == sp,], aes(x = year, ymin = lwr, ymax = upr, color = region, fill = region), alpha = 0.3) +
-    geom_line(data = newdat.total[newdat.total$species == sp,], aes(x = year, y = fit, color = region), lwd = 1) +
+    geom_ribbon(data = newdat.total[newdat.total$species == sp,], 
+                aes(x = year, ymin = lwr, ymax = upr, color = region, fill = region), 
+                alpha = 0.3) +
+    geom_line(data = newdat.total[newdat.total$species == sp,], 
+              aes(x = year, y = fit, color = region), 
+              lwd = 1) +
 
     # add sign. slope
-    geom_line(aes(year, fit.incr, group = region), data = newdat.total[newdat.total$species == sp,], col = "black", lty = 1, size = 1, na.rm = T) +
-    geom_line(aes(year, fit.decr, group = region), data = newdat.total[newdat.total$species == sp,], col = "black", lty = 1, size = 1, na.rm = T) +
+    geom_line(aes(year, fit.incr, group = region), 
+              data = newdat.total[newdat.total$species == sp,], 
+              col = "black", lty = 1, linewidth = 1, na.rm = T) +
+    geom_line(aes(year, fit.decr, group = region), 
+              data = newdat.total[newdat.total$species == sp,], 
+              col = "black", lty = 1, linewidth = 1, na.rm = T) +
 
 
     # add labs
     ylim(0, max(c(S.dat$ab.c, newdat.total$upr[newdat.total$species == sp]))) +
-    labs(x = "year", y = "abundance per km²", title = sp) +
-    theme_classic(base_size = 15)
+    labs(x = "year", y = "abundance per km²", 
+         title = paste0(sp, " (", mod.fam, ", ", zi.type, ")")) +
+    theme_classic()
 
-  
+  # add region specific colors
   if(mod.bgr == "both") {
     g <- g +
       scale_color_manual(values = c("atl" = "blue", "kon" = "orange", "overall" = "grey40")) +
-      scale_fill_manual(values = c("atl" = "blue", "kon" = "orange", "overall" = "grey40"))
+      scale_fill_manual( values = c("atl" = "blue", "kon" = "orange", "overall" = "grey40"))
   }
   
   if(mod.bgr == "atl") {
     g <- g +
       scale_color_manual(values = c("atl" = "blue")) +
-      scale_fill_manual(values = c("atl" = "blue"))
+      scale_fill_manual( values = c("atl" = "blue"))
   }
   
   if(mod.bgr == "kon") {
     g <- g +
       scale_color_manual(values = c("kon" = "orange")) +
-      scale_fill_manual(values = c("kon" = "orange"))
+      scale_fill_manual( values = c("kon" = "orange"))
   }
   
-  print(ggplotly(g, width = 700, height = 400, dynamicTicks = T))
+  print(g)
 
 
-  
+  ## plot index
   g <- ggplot(newdat.total[newdat.total$species == sp,], 
               aes(x = year, y = fit.i, ymin = lwr.i, ymax = upr.i)) +
-    geom_hline(yintercept = 0, show.legend = FALSE, linetype = "dashed") +
-    geom_hline(yintercept = 1, show.legend = FALSE, linetype = "dashed") +
+    
+    # add horizontal lines at y = 0 and y = 1
+    geom_hline(yintercept = 0, show.legend = FALSE, linetype = "dashed", linewidth = 0.5) +
+    geom_hline(yintercept = 1, show.legend = FALSE, linetype = "dashed", linewidth = 0.5) +
+    
+    # add trend
+    geom_ribbon(aes(color = region, fill = region), alpha = 0.2) +
     geom_line(aes(color = region), lwd = 1) +
-    geom_ribbon(aes(color = region, fill = region), alpha = 0.2) + # add show.legend = FALSE
+    
+    # add labs
     ylim(0, max(newdat.total$upr.i[newdat.total$species == sp])) +
-    labs(y = "Index", x = "survey year") + theme_classic(base_size = 15) +
-    ggtitle(sp)
+    labs(y = "Index", x = "survey year",
+         title = paste0(sp, " (", mod.fam, ", ", zi.type, ")")) + 
+    theme_classic()
   
+  # add region specific colors
   if(mod.bgr == "both") {
     g <- g +
       scale_color_manual(values = c("atl" = "blue", "kon" = "orange", "overall" = "grey40")) +
-      scale_fill_manual(values = c("atl" = "blue", "kon" = "orange", "overall" = "grey40"))
+      scale_fill_manual( values = c("atl" = "blue", "kon" = "orange", "overall" = "grey40"))
   }
   
   if(mod.bgr == "atl") {
     g <- g +
       scale_color_manual(values = c("atl" = "blue")) +
-      scale_fill_manual(values = c("atl" = "blue"))
+      scale_fill_manual( values = c("atl" = "blue"))
   }
   
   if(mod.bgr == "kon") {
     g <- g +
       scale_color_manual(values = c("kon" = "orange")) +
-      scale_fill_manual(values = c("kon" = "orange"))
+      scale_fill_manual( values = c("kon" = "orange"))
   }
   
-  print(ggplotly(g, width = 700, height = 400, dynamicTicks = T))
+  print(g)
+  
+  ## plot longterm trend
+  g <- ggplot() +
+    
+    # add horizontal line at 0
+    geom_hline(yintercept = 0, lty = "dashed", linewidth = 0.5) +
+    
+    # add longterm trend
+    geom_pointrange(aes(x = region, y = fit, ymin = lwr, ymax = upr, color = region), 
+                    data = lt.total[lt.total$species == sp,], 
+                    linewidth = 1, fatten = 8) +
+    geom_pointrange(aes(x = region, y = fit, ymin = lwr25, ymax = upr75, color = region), 
+                    data = lt.total[lt.total$species == sp,], 
+                    linewidth = 2, fatten = 8) +
+    
+    # add labs
+    labs(x = "biogeographical region", 
+         y = paste0(period, "-year abundance difference \n (", yearP - period, "-", yearP, ")"),
+         title = paste0(sp, " (", mod.fam, ", ", zi.type, ")"),
+         subtitle = "Longterm trend with 50% (thick) and 95% (thin) CrI") + 
+        theme_classic() +
+    theme(legend.position = "none")
+  
+  # add region specific colors
+  if(mod.bgr == "both") {
+    g <- g +
+      scale_color_manual(values = c("atl" = "blue", "kon" = "orange", "overall" = "grey40")) +
+      scale_fill_manual( values = c("atl" = "blue", "kon" = "orange", "overall" = "grey40"))
+  }
+  
+  if(mod.bgr == "atl") {
+    g <- g +
+      scale_color_manual(values = c("atl" = "blue")) +
+      scale_fill_manual( values = c("atl" = "blue"))
+  }
+  
+  if(mod.bgr == "kon") {
+    g <- g +
+      scale_color_manual(values = c("kon" = "orange")) +
+      scale_fill_manual( values = c("kon" = "orange"))
+  }
+  
+  print(g)
+  
   
 } ## end of species loop
-
-## plot posterior predictions
 
