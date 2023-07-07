@@ -21,12 +21,12 @@ library(brms)  # for models (brm())
 library(pracma) # for factor loading rotation (PCA)
 library(parallel) # detectCores()
 
-library(plotly)
+#library(plotly)
 library(ggbeeswarm)
 
 #install.packages("cmdstanr", repos = c("https://mc-stan.org/r-packages/", getOption("repos")))
 csr <- require(cmdstanr) # for core/chain parallelisation, if not installed, chains will not be parallized
-#set_cmdstan_path(path = "~/cmdstan")
+set_cmdstan_path(path = "~/cmdstan")
 
 # define backend and cores based on whether cmdstanr is installed or not
 cores <- detectCores() # get the number of cores for parallelization
@@ -65,8 +65,8 @@ test <- TRUE
 
 if(test == TRUE) {
   nc <- 4           # no. of chains
-  ni <- 2000        # no. of iterations (incl. warm-up)
-  nw <- 500         # no. of iterations (warm-up only)
+  ni <- 3000        # no. of iterations (incl. warm-up)
+  nw <- 1500         # no. of iterations (warm-up only)
   a.delta <- 0.99   # adapt_delta value
   max.td  <- 12     # max_treedepth value
 }
@@ -207,7 +207,7 @@ df.PCA$PC2r <- pca.RotatedScores[,2]
 df.PCA$PC3r <- pca.RotatedScores[,3]
 
 ## combine dat with PCA scores
-dat2 <- left_join(dat, df.PCA, by = c("ID", "year", "region"))
+dat <- left_join(dat, df.PCA, by = c("ID", "year", "region"))
 
 ## remove objects to free memory
 rm(pca.inverse)
@@ -222,10 +222,10 @@ rm(rot.df)
 
 #### 4.1) weights for both biogeographical regions combined ####
 ################################################################-
-dat3 <- weight(df.habitat = df.land,  # landscape data
+dat <- weight(df.habitat = df.land,  # landscape data
                habitat = "landscape", # column name for habitat
                area = "area_NRW",     # column name for area
-               df.data = dat2,        # raw data
+               df.data = dat,        # raw data
                ID = "ID",             # default column name
                year = "year",         # default column name
                by_spec = TRUE,        # calculate weight by species (e.g., if number of sites differs between species due to exclusion)
@@ -234,17 +234,17 @@ dat3 <- weight(df.habitat = df.land,  # landscape data
                add.df = TRUE)         # default: returns an additional dataframe with weights per habitat and year (and species)
 
 # rename "weight" to prevent overwriting in the next step
-colnames(dat3)[colnames(dat3) == "weight"] <- "weight.l"
+colnames(dat)[colnames(dat) == "weight"] <- "weight.l"
 
 #### 4.2) weights for each biogeographical region separately ####
 #################################################################-
 ## this is needed for species which are only modelled for one biogeographical region to guarantee a
 ## representative weighting of landscapes per region
 
-dat4 <- weight(df.habitat = df.land,  # landscape data
+dat <- weight(df.habitat = df.land,  # landscape data
                habitat = "landscape", # column name for habitat
                area = "area_NRW",     # column name for area
-               df.data = dat3,        # raw data
+               df.data = dat,        # raw data
                ID = "ID",             # default column name
                year = "year",         # default column name
                by_spec = TRUE,        # calculate weight by species (e.g., if number of sites differs between species due to exclusion)
@@ -254,19 +254,10 @@ dat4 <- weight(df.habitat = df.land,  # landscape data
                add.df = TRUE)         # default: returns an additional dataframe with weights per habitat and year (and species)
 
 # rename "weight" 
-colnames(dat4)[colnames(dat4) == "weight"] <- "weight.l.r"
+colnames(dat)[colnames(dat) == "weight"] <- "weight.l.r"
 
 #### 5) Model ####
 ##################-
-
-## ECXLUDE for testing only
-###########################################-
-df.spec[5, 1] <- "Common Chiffchaff"
-df.spec[5, 3] <- "both"
-df.spec[5, 4] <- "R"
-df.spec[5, 5] <- "zip"
-df.spec[5, 6] <- "no"
-##########################################-
 
 ## create list of species which you want to model, either
 
@@ -306,12 +297,12 @@ for (sp in spec.list) {
   
   ## subset dataframe and specify weight based on modelled biogeographical region(s) (mod.bgr)
   if(mod.bgr %in% c("both")) {
-    S.dat <- droplevels(dat4[dat4$species == sp,])
+    S.dat <- droplevels(dat[dat$species == sp,])
     S.dat$weight <- S.dat$weight.l
   }
   
   if(mod.bgr %in% c("atl", "kon")) {
-    S.dat <- droplevels(dat4[dat4$species == sp & dat4$region == as.character(mod.bgr),])
+    S.dat <- droplevels(dat[dat$species == sp & dat$region == as.character(mod.bgr),])
     S.dat$weight <- S.dat$weight.l.r
   }
   
@@ -401,7 +392,7 @@ for (sp in spec.list) {
     ############################################################################-
     
     if(mod.bgr %in% c("both")) {
-      S.dat <- droplevels(dat4[dat4$species == sp,])
+      S.dat <- droplevels(dat[dat$species == sp,])
       S.dat$weight <- S.dat$weight.l
       # update model formula
       mod.form <- update(mod.form, ~ . + s(year.s, by = region) + region)
@@ -409,7 +400,7 @@ for (sp in spec.list) {
     }
     
     if(mod.bgr %in% c("atl", "kon")) {
-      S.dat <- droplevels(dat4[dat4$species == sp & dat4$region == as.character(mod.bgr),])
+      S.dat <- droplevels(dat[dat$species == sp & dat$region == as.character(mod.bgr),])
       S.dat$weight <- S.dat$weight.l.r
       # update model formula
       mod.form <- update(mod.form, ~ . + s(year.s))
@@ -463,6 +454,9 @@ for(sp in spec.list){
   for(i in 1:length(mod.list))  {
     m <- unlist(strsplit(mod.list[i], split = "_"))[3]
     mods[[m]]  <- readRDS(paste0("./01_models/", mod.list[i]))
+    print(mod.list[i])
+    print(mods[[m]]$formula)
+    print(mods[[m]]$family)
   }
   
   ## posterior predictions of response variable

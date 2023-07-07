@@ -418,7 +418,8 @@ mod.stat <- function(model.list = NULL, model.name = NULL, response = NULL,
               subtitle = "observed value/raw data (blue line) and 
 simulated values (median with 50% (thick) and  95% (thin) CrI)") +
       facet_wrap(~ Stats, scales = "free_y") +
-      theme_classic())
+      theme_classic() +
+      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)))
   }
   
   return(df.modS.full)
@@ -509,17 +510,16 @@ add.zeros <- function(data = NULL, ID.year = "ID.year", species = "species", abu
 ## model.list   (default = NULL):              list with different models (of one species) for comparisons
 ## model.name   (default = names(model.list)): names of models (e.g. family and zero-inflated coefficients)
 ## response     (default = NULL):              name of response variable (character)
-## plot.stats   (default = FALSE):             if TRUE, graphical output is given
+## plot.conv    (default = FALSE):             if TRUE, graphical output is given
 ## spec         (default = NULL):              name of species (for title of plot)
 
 ## output:
 ##########-
 
-## the function mod.stat returns a dataframe including model statistics (different quantiles of simulated values, observed value, BayesP-value) 
-## for the proportion of zeros, minimum, maximum, mean, median, and SD of the response variable for different models
+## the function mod.conv returns a dataframe including model convergence parameters, e.g.,
+## maximum Rhat, minimum Neff/Ntot, maximum MCSE/SD, the number of divergent transitions and maximum treedepth
 
-## The function optionally returns a graphical output inlcuding the observed value of the raw data 
-## as well as median with 50% and 95% CrI of the simulated values if plot.stats = TRUE. 
+## The function optionally returns a graphical output if plot.stats = TRUE. 
 
 mod.conv <- function(model.list = NULL, model.name = NULL, td = NULL,
                      plot.conv = FALSE, spec = NULL) {
@@ -537,7 +537,7 @@ mod.conv <- function(model.list = NULL, model.name = NULL, td = NULL,
   
   for (m in 1:length(model.list)) {
     
-    df.modS  <- data.frame(conv = c("max. Rhat", "min. Neff", "max. MCSE / SD", "div.trans", "max. td"), value = NA, Nthres = NA,
+    df.modS  <- data.frame(conv = c("max. Rhat", "min. Neff/Ntot", "max. MCSE/SD", "div.trans", "max. td"), value = NA, Nthres = NA,
                            base = c(1, 1, 0, 0, 0),
                            threshold = c(1.01, 0.1, 0.1, 1, td),
                            color = "grey30")
@@ -546,21 +546,21 @@ mod.conv <- function(model.list = NULL, model.name = NULL, td = NULL,
     df.modS$value[df.modS$conv == "max. Rhat"]  <-  max(rhat(model.list[[m]]))
     df.modS$Nthres[df.modS$conv == "max. Rhat"] <-  sum(rhat(model.list[[m]]) >= 1.01)
     
-    df.modS$value[df.modS$conv == "min. Neff"]   <- min(neff_ratio(model.list[[m]]))
-    df.modS$Nthres[df.modS$conv == "min. Neff"]  <- sum(neff_ratio(model.list[[m]]) <= 0.1)
+    df.modS$value[df.modS$conv == "min. Neff/Ntot"]   <- min(neff_ratio(model.list[[m]]))
+    df.modS$Nthres[df.modS$conv == "min. Neff/Ntot"]  <- sum(neff_ratio(model.list[[m]]) <= 0.1)
     
     ps.df <- as.data.frame(apply(X = as.data.frame(model.list[[m]]), MARGIN = 2, FUN = sd))
     colnames(ps.df)[1] <- "sd"; ps.df$Parameter <- row.names(ps.df)
     mcse <- left_join(mcse(model.list[[m]], effects = "all", component = "all"), ps.df, by = "Parameter")
     
-    df.modS$value[df.modS$conv == "max. MCSE / SD"]  <- max(mcse$MCSE / mcse$sd)
-    df.modS$Nthres[df.modS$conv == "max. MCSE / SD"] <- sum((mcse$MCSE / mcse$sd) >= 0.1)
+    df.modS$value[df.modS$conv == "max. MCSE/SD"]  <- max(mcse$MCSE / mcse$sd)
+    df.modS$Nthres[df.modS$conv == "max. MCSE/SD"] <- sum((mcse$MCSE / mcse$sd) >= 0.1)
     
     # div. trans, treedepth
     nuts <- nuts_params(model.list[[m]])
     df.modS$value[df.modS$conv == "div.trans"]   <- max(nuts$Value[nuts$Parameter == "divergent__"])
     df.modS$value[df.modS$conv == "max. td"]    <- max(nuts$Value[nuts$Parameter == "treedepth__"])
-    df.modS$Nthres[df.modS$conv == "div.trans"]   <- length(nuts$Value[nuts$Parameter == "divergent__" & nuts$Value == 1])
+    df.modS$Nthres[df.modS$conv == "div.trans"]   <- length(nuts$Value[nuts$Parameter == "divergent__" & nuts$Value > 1])
     df.modS$Nthres[df.modS$conv == "max. td"]    <- length(nuts$Value[nuts$Parameter == "treedepth__" & nuts$Value > td])
     df.modS$model          <- as.character(model.name[m])
     df.modS$species        <- spec
@@ -573,7 +573,7 @@ mod.conv <- function(model.list = NULL, model.name = NULL, td = NULL,
   
   if(plot.conv == TRUE) {
     require(ggplot2) 
-    df.modS.full$conv <- factor(df.modS.full$conv, levels = c("max. Rhat", "min. Neff", "max. MCSE / SD", "div.trans", "max. td"))
+    df.modS.full$conv <- factor(df.modS.full$conv, levels = c("max. Rhat", "min. Neff/Ntot", "max. MCSE/SD", "div.trans", "max. td"))
     
     print(ggplot(df.modS.full) +
             geom_hline(aes(yintercept = base), color = "grey20", lty = "solid") +
@@ -585,7 +585,8 @@ mod.conv <- function(model.list = NULL, model.name = NULL, td = NULL,
                     subtitle = "As long as the values are between the solid and dashed line (grey dots), 
 model convergence is fine. The closer to the solid line, the better.") +
             facet_wrap(~ conv, scales = "free_y") +
-            theme_classic())
+            theme_classic() +
+            theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)))
   }
   
   return(select(df.modS.full, select = - color))
