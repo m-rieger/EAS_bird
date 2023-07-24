@@ -113,7 +113,7 @@ weight <- function(df.habitat = NULL, habitat = "habitat", area = "area",
   if (!(ID %in% colnames(df.data)))         stop(paste0("The column '", ID, "' is missing in df.data."))
   if (!(year %in% colnames(df.data)))       stop(paste0("The column '", year, "' is missing in df.data."))
 
-  if (by_spec) if(!(species %in% colnames(df.data)))  stop(paste0("The column '", species, "' is missing in df.data."))
+  if (by_spec) if(!(species %in% colnames(df.data))) stop(paste0("The column '", species, "' is missing in df.data."))
   if (by_reg)  {
     if (!(region  %in% colnames(df.data)))    stop(paste0("The column '", region, "' is missing in df.data."))
     if (!(region  %in% colnames(df.habitat))) stop(paste0("The column '", region, "' is missing in df.habitat."))
@@ -125,7 +125,7 @@ weight <- function(df.habitat = NULL, habitat = "habitat", area = "area",
   df.habitat$area    <- df.habitat[, area]
 
   ## target habitat per region (if by_reg = TRUE)
-  if(by_reg) {
+  if (by_reg) {
     df.habitat$region <- df.habitat[, region]
     df.habitat <- df.habitat %>% group_by(habitat, region) %>%
       summarise(area = sum(area), .groups = "drop") %>%
@@ -183,12 +183,12 @@ weight <- function(df.habitat = NULL, habitat = "habitat", area = "area",
     hab1 <- unique(df.habitat$habitat)
     hab2 <- unique(df.data2$habitat)
 
-    for (i in 1:length(hab1)) {
+    for (i in seq_along(hab1)) {
       if (!(hab1[i] %in% hab2))
         warning(paste0("Habitat ", hab1[i], " is not present in df.data. The dataset does not cover all present habitats."))
     }
 
-    for (i in 1:length(hab2)) {
+    for (i in seq_along(hab2)) {
       if (!(hab2[i] %in% hab1))
         stop(paste0("Habitat ", hab2[i], " is missing in df.habitat. Unable to calculate weights."))
     }
@@ -202,13 +202,13 @@ weight <- function(df.habitat = NULL, habitat = "habitat", area = "area",
       hab1 <- unique(df.habitat$habitat[df.habitat$region == r])
       hab2 <- unique(df.data2$habitat[df.data2$region == r])
 
-      for (i in 1:length(hab1)) {
-        if (!(hab1[i] %in% hab2)) 
+      for (i in seq_along(hab1)) {
+        if (!(hab1[i] %in% hab2))
           warning(paste0("Region '", r, "': Habitat ", hab1[i], " is not present in df.data. The dataset does not cover all present habitats."))
       }
 
-      for (i in 1:length(hab2)) {
-        if(!(hab2[i] %in% hab1)) 
+      for (i in seq_along(hab2)) {
+        if (!(hab2[i] %in% hab1))
           stop(paste0("Region '", r, "': Habitat ", hab2[i], " is missing in df.habitat. Unable to calculate weights."))
       }
     }
@@ -276,7 +276,7 @@ weight <- function(df.habitat = NULL, habitat = "habitat", area = "area",
 ## the function obs.eff returns a dataframe including the implemented raw data "data" 
   ## as well as the additionally column for observer effect ("OE_xx") per site and year and the default column "abundance".
 
-## The function optionally returns the dataframe "df.oe" containing observer effects per site and year if df.oe = TRUE. 
+## The function optionally returns the dataframe "df.oe" containing observer effects per site and year if df.oe = TRUE.
 ## This dataframe has the following columns:
   ## ID:            site ID
   ## year:          year of survey
@@ -298,7 +298,7 @@ obs.eff <- function(data = NULL, ID = "ID", abundance = "abundance", year = "yea
   if (!(ID %in% colnames(data)))        stop(paste0("The column '", ID, "' is missing in data"))
   if (!(abundance %in% colnames(data))) stop(paste0("The column '", abundance, "' is missing in data"))
   if (!(year %in% colnames(data)))      stop(paste0("The column '", year, "' is missing in data"))
-  if (OE <= 0 || OE >= 1)                stop("The threshold OE must be between 0 and 1.")
+  if (OE <= 0 || OE >= 1)               stop("The threshold OE must be between 0 and 1.")
 
   ## define columns
   # data$ID        <- data[, ID]
@@ -316,9 +316,9 @@ obs.eff <- function(data = NULL, ID = "ID", abundance = "abundance", year = "yea
 
   ## define categories based on threshold OE
   ##########################################-
-  df.oe$OE                         <- "none"
-  df.oe$OE[df.oe$Ab.prop < (1-OE)] <- "negative"
-  df.oe$OE[df.oe$Ab.prop > (1+OE)] <- "positive"
+  df.oe$OE                           <- "none"
+  df.oe$OE[df.oe$Ab.prop < (1 - OE)] <- "negative"
+  df.oe$OE[df.oe$Ab.prop > (1 + OE)] <- "positive"
 
   df.oe$OE <- as.factor(df.oe$OE)
 
@@ -354,11 +354,11 @@ obs.eff <- function(data = NULL, ID = "ID", abundance = "abundance", year = "yea
 ## output:
 ##########-
 
-## the function mod.stat returns a dataframe including model statistics (different quantiles of simulated values, observed value, BayesP-value) 
+## the function mod.stat returns a dataframe including model statistics (different quantiles of simulated values, observed value, BayesP-value)
 ## for the proportion of zeros, minimum, maximum, mean, median, and SD of the response variable for different models
 
-## The function optionally returns a graphical output inlcuding the observed value of the raw data 
-## as well as median with 50% and 95% CrI of the simulated values if plot.stats = TRUE. 
+## The function optionally returns a graphical output inlcuding the observed value of the raw data
+## as well as median with 50% and 95% CrI of the simulated values if plot.stats = TRUE.
 
 mod.stat <- function(model.list = NULL, model.name = NULL, response = NULL,
                      plot.stats = FALSE, spec = NULL) {
@@ -367,10 +367,10 @@ mod.stat <- function(model.list = NULL, model.name = NULL, response = NULL,
   ## define propZ-function
   prop_zero <- function(z) sum(z == 0) / length(z)
 
-  if(is.null(model.list))  stop("You need to define the model-list.")
-  if(!is.list(model.list)) stop("Model-list must be a list.")
-  if(is.null(model.name)) model.name <- names(model.list)
-  if(is.null(response))    stop("You need to define the response.")
+  if (is.null(model.list))  stop("You need to define the model-list.")
+  if (!is.list(model.list)) stop("Model-list must be a list.")
+  if (is.null(model.name))  model.name <- names(model.list)
+  if (is.null(response))    stop("You need to define the response.")
 
   ## define df.
   df.modS  <- data.frame(Stats = c("prop_zero", "min", "max", "mean", "median", "sd"))
@@ -379,7 +379,7 @@ mod.stat <- function(model.list = NULL, model.name = NULL, response = NULL,
   df.modS.full <- NULL
 
   ## loop for different models (for comparison)
-  for (m in 1:length(model.list)) {
+  for (m in seq_along(model.list)) {
 
     #mod <- model.list[m]
     ## define observed (yobs) and simulated (yrep) response
@@ -387,7 +387,7 @@ mod.stat <- function(model.list = NULL, model.name = NULL, response = NULL,
     yobs <- model.list[[m]]$data[, response]
 
     ## loop for different stats
-    for (i in 1:length(fun.list)) {
+    for (i in seq_along(fun.list)) {
 
       fun <- fun.list[[i]]
 
@@ -401,7 +401,7 @@ mod.stat <- function(model.list = NULL, model.name = NULL, response = NULL,
       df.modS$upr95[i]    <- quantile(stat_yrep, probs = 0.95)
       df.modS$upr97.5[i]  <- quantile(stat_yrep, probs = 0.975)
       df.modS$obs[i]      <- fun(yobs)
-      df.modS$BayesP[i]   <- (length(stat_yrep[stat_yrep > fun(yobs)])/length(stat_yrep)) + 
+      df.modS$BayesP[i]   <- (length(stat_yrep[stat_yrep > fun(yobs)])/length(stat_yrep)) +
                              (length(stat_yrep[stat_yrep == fun(yobs)])/length(stat_yrep)/2)
       df.modS$model       <- as.character(model.name[m])
       df.modS$species     <- spec
@@ -536,15 +536,15 @@ mod.conv <- function(model.list = NULL, model.name = NULL, td = NULL,
   require(tidyverse)
   require(bayestestR)
 
-  if(is.null(model.list))  stop("You need to define the model-list.")
-  if(!is.list(model.list)) stop("Model-list must be a list.")
-  if(is.null(model.name)) model.name <- names(model.list)
-  if(is.null(td))          stop("You need to define the maximum treedepth 'td'.")
+  if (is.null(model.list))  stop("You need to define the model-list.")
+  if (!is.list(model.list)) stop("Model-list must be a list.")
+  if (is.null(model.name))  model.name <- names(model.list)
+  if (is.null(td))          stop("You need to define the maximum treedepth 'td'.")
 
   df.modS.full <- NULL
 
-  for (m in 1:length(model.list)) {
-    
+  for (m in seq_along(model.list)) {
+
     df.modS  <- data.frame(conv = c("max. Rhat", "min. Neff/Ntot", "max. MCSE/SD", "div.trans", "max. td"), value = NA, Nthres = NA,
                            base = c(1, 1, 0, 0, 0),
                            threshold = c(1.01, 0.1, 0.1, 1, td),
@@ -554,8 +554,8 @@ mod.conv <- function(model.list = NULL, model.name = NULL, td = NULL,
     df.modS$value[df.modS$conv == "max. Rhat"]  <-  max(rhat(model.list[[m]]))
     df.modS$Nthres[df.modS$conv == "max. Rhat"] <-  sum(rhat(model.list[[m]]) >= 1.01)
 
-    df.modS$value[df.modS$conv == "min. Neff/Ntot"]   <- min(neff_ratio(model.list[[m]]))
-    df.modS$Nthres[df.modS$conv == "min. Neff/Ntot"]  <- sum(neff_ratio(model.list[[m]]) <= 0.1)
+    df.modS$value[df.modS$conv == "min. Neff/Ntot"]  <- min(neff_ratio(model.list[[m]]))
+    df.modS$Nthres[df.modS$conv == "min. Neff/Ntot"] <- sum(neff_ratio(model.list[[m]]) <= 0.1)
 
     ps.df <- as.data.frame(apply(X = as.data.frame(model.list[[m]]), MARGIN = 2, FUN = sd))
     colnames(ps.df)[1] <- "sd"; ps.df$Parameter <- row.names(ps.df)
