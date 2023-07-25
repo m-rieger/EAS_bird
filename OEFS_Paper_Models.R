@@ -3,10 +3,11 @@
 ###########################-
 
 ## author: Mirjam R. Rieger
-## latest update: 2023-06-16 (MR)
+## latest update: 2023-07-25 (NA)
   # 2023-06-03 (MR): created script based on MA script
   # 2023-06-16 (MR): initial commit GitHub
   # 2023-07-03 (MR): add posterior predictions
+  # 2023-07-25 (NA): suggestions for cmdstanr-issues
 
 
 #### 1) preparations ####
@@ -31,8 +32,19 @@ for (i in pckgs) {
 sapply(pckgs, require, character.only = TRUE)
 
 #install.packages("cmdstanr", repos = c("https://mc-stan.org/r-packages/", getOption("repos")))
-csr <- require(cmdstanr) # for core/chain parallelisation, if not installed, chains will not be parallized
+## !! ## INTEGRATE call to cmdstanr into the above pckgs check above!? ----
+
+csr <- require(cmdstanr) # for core/chain parallelisation, if not installed, chains will not be parallelized
+## !! ## ALLOW an explicit option to run models WITHOUT cmdstanr (assuming this is possible)? That would be useful for users who struggle here ----
+
+# install_cmdstan() 
+## !! ## It seems I had to manually install cmdstan (but I am NOT entirely sure that this was truly part of the problem). Add as option? ----
+
 set_cmdstan_path(path = "~/cmdstan")
+## !! ## WHY is this call needed? It doesn't work in my case. What should users add there, and why? ----
+
+cmdstan_path()  # This call should find a path - otherwise, first troubleshoot your cmdstan installation.
+
 
 # define backend and cores based on whether cmdstanr is installed or not
 cores <- detectCores() # get the number of cores for parallelization
