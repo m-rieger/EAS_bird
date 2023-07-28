@@ -10,7 +10,6 @@
   # 2023-07-25 (NA): suggestions for cmdstanr-issues
   # 2023-07-28 (MR): incorporate suggestions from NA and GR
 
-
 #### 1) preparations ####
 #########################-
 
