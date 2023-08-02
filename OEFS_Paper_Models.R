@@ -3,11 +3,12 @@
 ###########################-
 
 ## author: Mirjam R. Rieger
-## latest update: 2023-06-16 (MR)
+## latest update: 2023-07-28 (MR)
   # 2023-06-03 (MR): created script based on MA script
   # 2023-06-16 (MR): initial commit GitHub
   # 2023-07-03 (MR): add posterior predictions
-
+  # 2023-07-25 (NA): suggestions for cmdstanr-issues
+  # 2023-07-28 (MR): incorporate suggestions from NA and GR
 
 #### 1) preparations ####
 #########################-
@@ -21,7 +22,7 @@ pckgs <- c(
     "bayestestR", # for mcse()
     "pracma", # for factor loading rotation (PCA)
     "parallel", # detectCores()
-    "ggbeeswarm"
+    "ggbeeswarm" # for plots
 )
 for (i in pckgs) {
     if (!i %in% installed.packages()) {
@@ -30,25 +31,8 @@ for (i in pckgs) {
 }
 sapply(pckgs, require, character.only = TRUE)
 
-#install.packages("cmdstanr", repos = c("https://mc-stan.org/r-packages/", getOption("repos")))
-csr <- require(cmdstanr) # for core/chain parallelisation, if not installed, chains will not be parallized
-set_cmdstan_path(path = "~/cmdstan")
-
-# define backend and cores based on whether cmdstanr is installed or not
-cores <- detectCores() # get the number of cores for parallelization
-
-if (csr == TRUE) {
-  backend <- "cmdstanr"
-  thread  <- floor((cores-1)/2)
-  ncores  <- 2
-}
-
-if (csr == FALSE) {
-  backend <- "rstan"
-  ncores  <- min(cores-1, nc)
-  thread  <- NULL
-}
-
+csr <- require(cmdstanr) # for core/chain parallelisation, if not installed, chains will not be parallelized and it will take more time
+# check out readme for instructions on how to use cmdstanr and cmdstan if you want to use it
 
 ## load functions
 prop_zero   <- function(z) sum(z == 0) / length(z)
@@ -83,6 +67,22 @@ if (test == FALSE) {
   nw <- 1500        # no. of iterations (warm-up only)
   a.delta <- 0.9999 # adapt_delta value
   max.td  <- 15     # max_treedepth value
+}
+
+
+# define backend and cores based on whether cmdstanr is installed or not
+cores <- detectCores() # get the number of cores for parallelization
+
+if (csr == TRUE) {
+  backend <- "cmdstanr"
+  thread  <- floor((cores-1)/2)
+  ncores  <- 2
+}
+
+if (csr == FALSE) {
+  backend <- "rstan"
+  ncores  <- min(cores-1, nc)
+  thread  <- NULL
 }
 
 ## define species subset

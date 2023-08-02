@@ -8,45 +8,6 @@
   #                  and updated weight-function to calculate weights per region, too
   # 2023-07-03 (MR): added some details to mod.stat()
 
-## content:
-  ##
-  ##
-  ##
-  ##
-
-
-
-####################-
-#### Nützliches ####
-####################-
-# Variablen in Funktion global abspeichern: <<- (oder am Ende return verwenden)
-
-################################################################################-
-################################################################################-
-
-# ## raw data for weights
-# #######################-
-# library(dplyr)
-# df.habitat <- read.csv("OEFS_LR-BR_Anteil.csv",        as.is = F, sep = ",", encoding = "latin1")
-# df.habitat$habitat <- paste0(df.habitat$LR, ".", df.habitat$Ballungsraum)
-# df.habitat <- as.data.frame(df.habitat %>% group_by(habitat) %>% summarize(Fläche = sum(Fläche.R), .groups = "drop"))
-# ## this df needs a column with all possible habitats (habitat = "col.name" and the area of each combination (area = "col.name"))
-# ## the area can also be the share of each habitat of the study area
-#
-# dat <- read.csv(paste0("./02_Modell-Info/OEFS_Rohdaten_full_2002-2020.csv"), encoding = "latin1", as.is = F)
-# df.data <- droplevels(dat[dat$Name %in% c("Amsel", "Blaumeise", "Kleiber"), c("Name", "Jahr", "FS_ID", "LR", "Ballungsraum", "weight_LR.BR")])
-# df.data$habitat <- paste0(df.data$LR, ".", df.data$Ballungsraum)
-#
-# habitat = "habitat"
-# area = "Fläche"
-#
-# ID = "FS_ID"
-# year = "Jahr"
-#
-# by_spec = TRUE
-# species = "Name"
-
-
 #' Weights based on habitat representativity
 #'
 #' @description
@@ -365,12 +326,13 @@ mod.stat <- function(model.list = NULL, model.name = NULL, response = NULL,
 
   require(brms)
   ## define propZ-function
-  prop_zero <- function(z) sum(z == 0) / length(z)
-
-  if (is.null(model.list))  stop("You need to define the model-list.")
-  if (!is.list(model.list)) stop("Model-list must be a list.")
-  if (is.null(model.name))  model.name <- names(model.list)
-  if (is.null(response))    stop("You need to define the response.")
+  prop_zero   <- function(z) sum(z == 0) / length(z)  
+  
+  if(is.null(model.list))  stop("You need to define the model-list.")
+  if(!is.list(model.list)) stop("Model-list must be a list.")
+  if(is.null(model.name)) model.name <- names(model.list)
+  if(is.null(model.name)) model.name <- as.character(1:length(model.list)) # if the list is not named and still NULL
+  if(is.null(response))    stop("You need to define the response.")
 
   ## define df.
   df.modS  <- data.frame(Stats = c("prop_zero", "min", "max", "mean", "median", "sd"))
@@ -536,11 +498,12 @@ mod.conv <- function(model.list = NULL, model.name = NULL, td = NULL,
   require(tidyverse)
   require(bayestestR)
 
-  if (is.null(model.list))  stop("You need to define the model-list.")
-  if (!is.list(model.list)) stop("Model-list must be a list.")
-  if (is.null(model.name))  model.name <- names(model.list)
-  if (is.null(td))          stop("You need to define the maximum treedepth 'td'.")
-
+  if(is.null(model.list))  stop("You need to define the model-list.")
+  if(!is.list(model.list)) stop("Model-list must be a list.")
+  if(is.null(model.name)) model.name <- names(model.list)
+  if(is.null(model.name)) model.name <- as.character(1:length(model.list)) # if the list is not named and still NULL
+  if(is.null(td))          stop("You need to define the maximum treedepth 'td'.")
+  
   df.modS.full <- NULL
 
   for (m in seq_along(model.list)) {
