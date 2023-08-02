@@ -2,11 +2,16 @@
 ######################################-
 
 ## author: Mirjam R. Rieger
-## latest update: 2023-06-03 (MR)
+## latest update: 2023-08-02 (MR)
   # 2023-06-03 (MR): added add.zeros-function
   # 2023-06-16 (MR): added option (FALSE/TRUE) to obs.eff and weight to get additional dataframe or not
   #                  and updated weight-function to calculate weights per region, too
   # 2023-07-03 (MR): added some details to mod.stat()
+  # 2023-08-02 (MR): change as package
+
+## to see package: devtools::document() then ?
+#### ADD PACKAGE DESCRIPTION ####
+
 
 #' Weights based on habitat representativity
 #'
@@ -21,17 +26,17 @@
 #'
 #' @param df.habitat dataframe including present "habitats" and the total "area"
 #'    of the habitat of the studied region (this is the target share)
-#' @param habitat column name of habitat in df.habitat and df.data
-#' @param area column name of area (share) in df.habitat
+#' @param habitat column name of habitat in `df.habitat` and `df.data`
+#' @param area column name of area (share) in `df.habitat`
 #' @param df.data dataframe including site "ID" for each "year" the site was
 #'    surveyed and the assigned "habitat". You can use your raw data per species
 #'    since the function condenses the df to its unique site-year combination.
-#' @param ID column name of site ID in df.data
-#' @param year column name of year in df.data
+#' @param ID column name of site ID in `df.data`
+#' @param year column name of year in `df.data`
 #' @param by_spec logical indicating whether weights should be calculated per
-#'    species (e.g., if observations were excluded species-specific resulting in
+#'    species (`by_spec = TRUE`, e.g., if observations were excluded species-specific resulting in
 #'    different annual site-subsets per species)
-#' @param species column name of species name in df.data
+#' @param species column name of species name in `df.data`
 #'    (only needed if `by_spec = TRUE`)
 #' @param add.df if `TRUE`, returns a dataframe with weights per habitat and
 #'    year (and species)
@@ -191,61 +196,49 @@ weight <- function(df.habitat = NULL, habitat = "habitat", area = "area",
 
 }
 
-# df.W <- weight(df.habitat = df.habitat, habitat = "habitat", area = "Fläche",
-#        df.data = df.data, ID = "FS_ID", year = "Jahr", by_spec = FALSE, species = "Name")
 
-################################################################################-
-################################################################################-
+#' observer effects based on total abundance
 
-## raw data for obs.eff
-#######################-
+#' @description
+#' This function calculates observer effects based on the proportional total 
+#' abundance (= total abundance per site and year / mean total abundance per site).
+#' For each site and year, observer effects are classified in three classes 
+#' using a defined threshold 
+#' - if proportional abundance < (1-threshold), the effect is classified as 
+#'   "negative".
+#' - if proportional abundance > (1+threshold), the effect is classified as 
+#'   "positive".
+#' - if (1-threshold) <= proportional abundance <= (1+threshold), the effect is 
+#'   classified as "none".
 
-# df.obs <- dat[, c("Name", "Jahr", "FS_ID", "Abundanz", "KartQ_prop", "Kart.Q25")]
-#
-# ID <- "FS_ID"
-# abundance <- "Abundanz"
-# year = "Jahr"
-# df.data <- df.obs
-# OE <- 0.25
+#' @param data dataframe including "abundance" per site "ID" and survey "year" 
+#'    for all species (= raw data)
+#' @param ID columname of site ID in `data`
+#' @param abundance columname of abundance in `data`
+#' @param year columname of year in `data`
+#' @param OE threshold for classifying observer effects, should be a value >0 
+#'    and <1.
+#' @param add.df if `TRUE`, returns a dataframe with observer effect per site and 
+#'    year
 
+#' @returns  
 
-
-######################################################-
-#### 2) observer effects based on total abundance ####
-######################################################-
-
-## This function calculates observer effects based on the proportional total abundance 
-## (= total abundance per site and year / mean total abundance per site).
-## For each site and year, observer effects are classified in three classes using a defined threshold (default = 0.25) 
-## If proportional abundance < (1-threshold), the effect is classified as "negative".
-## If proportional abundance > (1+threshold), the effect is classified as "positive".
-## If (1-threshold) <= proportional abundance <= (1+threshold), the effect is classified as "none".
-
-## input:
-#########-
-
-## data      (default = NULL):        dataframe including "abundance" per site "ID" and survey "year" for all species (= raw data)
-## ID        (default = "ID"):        columname of site ID in data
-## abundance (default = "abundance"): columname of abundance in data
-## year      (default = "year"):      columname of year in data
-## OE        (default = 0.25):        threshold for classifying observer effects, should be a value >0 and <1.
-## add.df    (default = TRUE):        if TRUE, returns a dataframe with observer effect per site and year
-
-## output:
-##########-
-
-## the function obs.eff returns a dataframe including the implemented raw data "data" 
-  ## as well as the additionally column for observer effect ("OE_xx") per site and year and the default column "abundance".
-
-## The function optionally returns the dataframe "df.oe" containing observer effects per site and year if df.oe = TRUE.
-## This dataframe has the following columns:
-  ## ID:            site ID
-  ## year:          year of survey
-  ## Ab.total:      total abundance per site and year (summed up across all species)
-  ## mean.Ab.total: mean total abundance (Ab.total) per site
-  ## Ab.prop:       proportional abundance per site and year (= Ab.total / mean.Ab.total per site)
-  ## OE_xx:         observer effect levels "negative", "none", and "positive" per site and year. xx is the used threshold in %.
-
+#' `obs.eff()` returns a dataframe including the implemented raw data 
+#' (in "data") as well as the additionally column for observer effect ("OE_xx") 
+#' per site and year and the default column "abundance".  
+#'  
+#' The function optionally returns the dataframe "df.oe" containing observer 
+#' effects per site and year if `add.df = TRUE`.
+#' This dataframe has the following columns:
+#'  - ID:            site ID
+#'  - year:          year of survey
+#'  - Ab.total:      total abundance per site and year (summed up across all 
+#'  species)
+#'  - mean.Ab.total: mean total abundance (Ab.total) per site
+#'  - Ab.prop:       proportional abundance per site and year 
+#'  (= Ab.total / mean.Ab.total per site)
+#'  - OE_xx:         observer effect levels "negative", "none", and "positive" 
+#'  per site and year. "xx" is the used threshold in %.
 
 
 obs.eff <- function(data = NULL, ID = "ID", abundance = "abundance", year = "year",
@@ -295,31 +288,23 @@ obs.eff <- function(data = NULL, ID = "ID", abundance = "abundance", year = "yea
 }
 
 
-# df.OE <- obs.eff(data = df.obs, ID = "FS_ID", abundance = "Abundanz", year = "Jahr")
+#' View model statistics (propZ, mean, ...)
+
+#' @description
+#### ADD DESCRIPTION ####
+
+#' model.list   (default = NULL):              list with different models (of one species) for comparisons
+#' model.name   (default = names(model.list)): names of models (e.g. family and zero-inflated coefficients)
+#' response     (default = NULL):              name of response variable (character)
+#' plot.stats   (default = FALSE):             if TRUE, graphical output is given
+#' spec         (default = NULL):              name of species (for title of plot)
 
 
-######################################################-
-#### 3) View model statistics (propZ, mean, ...)  ####
-######################################################-
+#' the function mod.stat returns a dataframe including model statistics (different quantiles of simulated values, observed value, BayesP-value)
+#' for the proportion of zeros, minimum, maximum, mean, median, and SD of the response variable for different models
 
-
-## input:
-#########-
-
-## model.list   (default = NULL):              list with different models (of one species) for comparisons
-## model.name   (default = names(model.list)): names of models (e.g. family and zero-inflated coefficients)
-## response     (default = NULL):              name of response variable (character)
-## plot.stats   (default = FALSE):             if TRUE, graphical output is given
-## spec         (default = NULL):              name of species (for title of plot)
-
-## output:
-##########-
-
-## the function mod.stat returns a dataframe including model statistics (different quantiles of simulated values, observed value, BayesP-value)
-## for the proportion of zeros, minimum, maximum, mean, median, and SD of the response variable for different models
-
-## The function optionally returns a graphical output inlcuding the observed value of the raw data
-## as well as median with 50% and 95% CrI of the simulated values if plot.stats = TRUE.
+#' The function optionally returns a graphical output inlcuding the observed value of the raw data
+#' as well as median with 50% and 95% CrI of the simulated values if plot.stats = TRUE.
 
 mod.stat <- function(model.list = NULL, model.name = NULL, response = NULL,
                      plot.stats = FALSE, spec = NULL) {
@@ -397,11 +382,6 @@ simulated values (median with 50% (thick) and  95% (thin) CrI)") +
 
 }
 
-#Effs <- mod.stat(model.list = list(mod2, mod2), response = "Ab.c", plot.stats = TRUE)
-
-
-## df.weight (df.obs.eff) which is saved will overwrite any object called 'df.weight (df.obs.eff)
-# e.g. add save.dat == TRUE/FALSE
 
 ###########################################-
 #### 4) add zero abundances if missing ####

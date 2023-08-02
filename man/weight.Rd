@@ -22,23 +22,23 @@ weight(
 \item{df.habitat}{dataframe including present "habitats" and the total "area"
 of the habitat of the studied region (this is the target share)}
 
-\item{habitat}{column name of habitat in df.habitat and df.data}
+\item{habitat}{column name of habitat in \code{df.habitat} and \code{df.data}}
 
-\item{area}{column name of area (share) in df.habitat}
+\item{area}{column name of area (share) in \code{df.habitat}}
 
 \item{df.data}{dataframe including site "ID" for each "year" the site was
 surveyed and the assigned "habitat". You can use your raw data per species
 since the function condenses the df to its unique site-year combination.}
 
-\item{ID}{column name of site ID in df.data}
+\item{ID}{column name of site ID in \code{df.data}}
 
-\item{year}{column name of year in df.data}
+\item{year}{column name of year in \code{df.data}}
 
 \item{by_spec}{logical indicating whether weights should be calculated per
-species (e.g., if observations were excluded species-specific resulting in
+species (\code{by_spec = TRUE}, e.g., if observations were excluded species-specific resulting in
 different annual site-subsets per species)}
 
-\item{species}{column name of species name in df.data
+\item{species}{column name of species name in \code{df.data}
 (only needed if \code{by_spec = TRUE})}
 
 \item{add.df}{if \code{TRUE}, returns a dataframe with weights per habitat and
