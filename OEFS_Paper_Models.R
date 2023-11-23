@@ -36,7 +36,7 @@ csr <- require(cmdstanr) # for core/chain parallelisation, if not installed, cha
 
 ## load functions
 prop_zero   <- function(z) sum(z == 0) / length(z)
-source("./R/OEFS_Paper_Functions.R")
+source("../EAS_fun/OEFS_Paper_Functions.R")
 
 ## define first (year1) and last year (yearx)
 year1 <- 2002
