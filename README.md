@@ -8,8 +8,7 @@ This repository contains data and code to reproduce results from *add Title*
 
 
 ## Content
-- **OEFS_Paper_Models.R**: script for the complete modelling process.
-- /**R**: contains code for helper functions in R. 
+- **EAS_bird.R**: script for the complete modelling process.
 - /**data**: contains data ready for analysis.
     - OEFS_Paper_LandscapeNRW.csv: landscape shares of NRW.
     - OEFS_Paper_RawData.csv: raw data from EAS surveys for selected species
