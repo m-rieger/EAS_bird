@@ -42,7 +42,7 @@ if(csr) {
 }
 
 
-## load functions
+## load functions and EAS package
 prop_zero   <- function(z) sum(z == 0) / length(z)
 if (!"EAS" %in% installed.packages()) {
   devtools::install_github("m-rieger/EAS")
@@ -199,13 +199,11 @@ names(mod.PCA$sdev) <- as.character(1:length(mod.PCA$sdev)) # assures PCs are nu
 screeplot(mod.PCA, xlab = "Principal Component", main = "Variance of PCs"); abline(1,0)
 
 ## check scatter of PCs against each other (you might want to check more/other PCs)
-par(mfrow = c(2,2))
 plot(mod.PCA$x[,1], mod.PCA$x[,2],  xlab = "PC1", ylab = "PC2", pch = 16); abline(h = 0, v = 0, lty = 2)
 plot(mod.PCA$x[,1], mod.PCA$x[,3],  xlab = "PC1", ylab = "PC3", pch = 16); abline(h = 0, v = 0, lty = 2)
 plot(mod.PCA$x[,2], mod.PCA$x[,3],  xlab = "PC2", ylab = "PC3", pch = 16); abline(h = 0, v = 0, lty = 2)
 
 ## check correlation between original variables and PC scores
-par(mfrow = c(1,1))
 biplot(mod.PCA, choices = c(1, 2), col = c("grey90","black")); abline(h = 0, v = 0, lty = 2)
 biplot(mod.PCA, choices = c(1, 3), col = c("grey90","black")); abline(h = 0, v = 0, lty = 2)
 biplot(mod.PCA, choices = c(2, 3), col = c("grey90","black")); abline(h = 0, v = 0, lty = 2)
@@ -252,6 +250,7 @@ dat <- weight(df.habitat = df.land,   # landscape data
                species = "species",   # default column name
                by_reg = FALSE,        # default
                add.df = TRUE)         # default: returns an additional dataframe with weights per habitat and year (and species)
+# remark: here, KB.yes and SB.yes are not present in the dataset
 
 # rename "weight" to prevent overwriting in the next step
 colnames(dat)[colnames(dat) == "weight"] <- "weight.l"
@@ -272,6 +271,7 @@ dat <- weight(df.habitat = df.land,  # landscape data
                by_reg = TRUE,         # calculate weights separately per region
                region = "region",     # default column name
                add.df = TRUE)         # default: returns an additional dataframe with weights per habitat and year (and species)
+# remark: here, several landscape combinations are not present in 'atl' and 'kon'
 
 # rename "weight"
 colnames(dat)[colnames(dat) == "weight"] <- "weight.l.r"
@@ -626,11 +626,15 @@ for (sp in spec.list) {
     ## merge data
     newdat.r$species <- sp
     lt.tbl$species   <- sp
+    lt.tbl$longterm  <- paste0(yearP - period, "-", yearP)
     newdat.total     <- rbind(newdat.total, newdat.r)
     lt.total         <- rbind(lt.total, lt.tbl)
 
   } ## end of region loop
-
+  
+  write.csv(newdat.total, paste0("./02_output/PosteriorPreditions_", year1, "-", yearx ,".csv"))
+  write.csv(lt.total,     paste0("./02_output/LongtermTrend_", year1, "-", yearx , "_", yearP - period, "-", yearP, ".csv"))
+  
   ## plot posterior predictions
   #############################-
 
@@ -664,7 +668,8 @@ for (sp in spec.list) {
     # add labs
     ylim(0, max(c(S.dat$ab.c, newdat.total$upr[newdat.total$species == sp]))) +
     labs(x = "year", y = "abundance per km²",
-         title = paste0(sp, " (", mod.fam, ", ", zi.type, ")")) +
+         title = paste0(sp, " (", mod.fam, ", ", zi.type, ")"),
+         subtitle = "black = period of robust increase/decrease") +
     theme_classic()
 
   # add region specific colors
@@ -753,20 +758,17 @@ for (sp in spec.list) {
   # add region specific colors
   if(mod.bgr == "both") {
     g <- g +
-      scale_color_manual(values = c("atl" = "blue", "kon" = "orange", "overall" = "grey40")) +
-      scale_fill_manual( values = c("atl" = "blue", "kon" = "orange", "overall" = "grey40"))
+      scale_color_manual(values = c("atl" = "blue", "kon" = "orange", "overall" = "grey40"))
   }
 
   if (mod.bgr == "atl") {
     g <- g +
-      scale_color_manual(values = c("atl" = "blue")) +
-      scale_fill_manual( values = c("atl" = "blue"))
+      scale_color_manual(values = c("atl" = "blue"))
   }
 
   if (mod.bgr == "kon") {
     g <- g +
-      scale_color_manual(values = c("kon" = "orange")) +
-      scale_fill_manual( values = c("kon" = "orange"))
+      scale_color_manual(values = c("kon" = "orange"))
   }
 
   print(g)
