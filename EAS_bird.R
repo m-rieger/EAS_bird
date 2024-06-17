@@ -632,8 +632,10 @@ for (sp in spec.list) {
 
   } ## end of region loop
   
-  write.csv(newdat.total, paste0("./02_output/PosteriorPreditions_", year1, "-", yearx ,".csv"))
-  write.csv(lt.total,     paste0("./02_output/LongtermTrend_", year1, "-", yearx , "_", yearP - period, "-", yearP, ".csv"))
+  write.csv(newdat.total, paste0("./02_output/PosteriorPreditions_", year1, "-", yearx ,".csv"),
+            row.names = F, fileEncoding = "latin1")
+  write.csv(lt.total,     paste0("./02_output/LongtermTrend_", year1, "-", yearx , "_", yearP - period, "-", yearP, ".csv"),
+            row.names = F, fileEncoding = "latin1")
   
   ## plot posterior predictions
   #############################-
