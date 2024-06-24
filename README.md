@@ -1,6 +1,6 @@
 # EAS_bird
-![](https://img.shields.io/github/license/m-rieger/EAS_bird)
-<!-- [![DOI](https://zenodo.org/badge/<...>.svg)]() -->
+![](https://img.shields.io/github/license/m-rieger/EAS_bird) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.12518872.svg)](https://doi.org/10.5281/zenodo.12518872)
+
 
 This repository contains exemplified data and code to reproduce results from Rieger, M.R., Grüneberg, C., Oberhaus, M., Trautmann, S., Parepa, M., Anthes, N. (2024). Analysing bird population trends from monitoring data with highly structured sampling designs. Preprint []().
 
