@@ -11,13 +11,15 @@ Population trends derived from systematic monitoring programmes are essential to
 
 
 ## Content
-### data
+### raw data
 The data subset consists of four species (Common Blackbird, Common Chiffchaff, Common Kestrel, White Wagtail) that were modelled for both biogeographical regions and used as example species in the article, as well as one species (Common Redstart) that was modelled for only one biogeographical region.     
 - `/data`: contains data ready for analysis.  
     - `EAS_bird_LandscapeNRW.csv`: landscape shares of NRW. Columns: *landscape* (natural region and metropolitan area combination), *region* (biogeographical region), *area_NRW* (area in km² per landscape)  
     - `EAS_bird_RawData.csv`: raw data from EAS surveys for selected species. Columns: *abundance* (number of territories per km²), *exclude* (exclusion of data due to an internal validation process of the LANUV (*yes*)), *ID* (site ID), *year* (survey year), *region* (biogeographical region, atl = atlantic, kon = continental), *landcape* (natural region and metropolitan area combination), *species*, *species_sci* (English and scientific species names. The species 'other' contains the summed up abundances of all species that are not listed in the data set to compute observer effects based on total abundances), *obs.ID* (observer ID)  
     - `EAS_bird_SiteInfo.csv`: raw data of site specific parameters like weather data and landscapes. Columns: *Tmean_*, *Tmin_*, *Tmax_*, *rain_*, *sun_* (long-term averages of mean, minimum and maximum temperatures (°C), precipitation and sunshine duration (h) for spring and winter), *altitude_asl* (altitude above sea level), *arable*, *forest*, *settlement* (portion of site (%) covered by arable land, forests, or settlement areas)   
     - `EAS_bird_SpeciesInfo.csv`: species-specific information for modelling process. Columns: *species*, *species_sci* (English and scientific species names), *modR* (biogeographical region(s) used for modelling), *modZI* (binomial model coefficients), *modFAM* (model family, pois = Poisson, nb = negative binomial, zip = zero-inflated Poisson, zinb = zero-inflated negative binomial), *modFINAL* (indicates whether model is used as final model ('yes') or to exemplify model selection ('no'))    
+    
+### data that will be created
 - `/01_models`: This is where RDS-files of models will be saved.
 - `/02_output`: This is where posterior predictions of trends (`PosteriorPredictions_*.csv`) and longterm trends (`LongtermTrend_*.csv`) will be saved.
 

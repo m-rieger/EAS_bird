@@ -112,6 +112,9 @@ df.land <- read.csv("./data/EAS_bird_LandscapeNRW.csv", sep = ",", encoding = "l
 # species information (model type, family)
 df.spec <- read.csv("./data/EAS_bird_SpeciesInfo.csv",  sep = ",", encoding = "latin1")
 
+## create folders for models and output
+if(!dir.exists("01_models")) dir.create("01_models")
+if(!dir.exists("02_output")) dir.create("02_output")
 
 #### 2) prepare raw data ####
 #############################-
