@@ -68,8 +68,8 @@ if (test == TRUE) {
   nc <- 4           # no. of chains
   ni <- 3000        # no. of iterations (incl. warm-up)
   nw <- 1500        # no. of iterations (warm-up only)
-  a.delta <- 0.99   # adapt_delta value
-  max.td  <- 12     # max_treedepth value
+  a.delta <- 0.95   # adapt_delta value
+  max.td  <- 10     # max_treedepth value
 }
 
 if (test == FALSE) {
@@ -135,7 +135,7 @@ df.raw$ID.year <- as.factor(paste0(df.raw$ID, ".", df.raw$year))
 table(df.raw$species)
 # add zeros
 dat <- add.zeros(data = df.raw,
-                 ID.year.dep = c("ID", "year", "region", "landscape", "obs.ID"),
+                 ID.year.dep = c("ID", "year", "region", "landscape", "obs.ID", "habitat", "metro"),
                  species.dep = c("species_sci")) # for details, see function-script
 # check columns with NAs: replace NAs in 'exclude' with 'no'
 dat$exclude[is.na(dat$exclude)] <- "no"
@@ -163,6 +163,15 @@ dat <- obs.eff(data = dat,
 
 ## round up .5 abundances
 dat$ab.c <- ceiling(dat$abundance)
+
+## use 2*abundance with offset 2
+dat$ab2 <- 2*dat$abundance
+dat$off <- 2
+
+## add natural region
+dat$nat.region <- dat$habitat
+dat$nat.region[dat$metro == "yes"] <- "metro"
+dat$nat.region <- as.factor(dat$nat.region)
 
 ## scale year to year1 = 0 (for faster runtime)
 dat$year.s <- dat$year - year1
@@ -237,47 +246,65 @@ rm(pca.raw)
 rm(mod.PCA)
 rm(rot.df)
 
+
+###### calculation of nat.region composition
+df.land$nat.region <- df.land$habitat
+df.land$nat.region[df.land$metro == "yes"] <- "metro"
+
+df.land.ov <- df.land %>% group_by(nat.region) %>%
+  summarize(area_ov = sum(area_NRW), .groups = "drop")
+df.land.ov$prop.area <- round(df.land.ov$area_ov/sum(df.land.ov$area_ov), 4)
+
+df.land.bgr <- df.land %>% group_by(nat.region, region) %>%
+  summarize(area_ov = sum(area_NRW), .groups = "drop") %>%
+  group_by(region) %>%
+  mutate(area_bgr = sum(area_ov)) %>%
+  ungroup()
+
+df.land.bgr$prop.area <- round(df.land.bgr$area_ov/df.land.bgr$area_bgr, 4)
+
+
 #### 4) weights ####
 ####################-
 # this is done for each species separately since the exclusion of OK = 0 values is species-specific
 
-#### 4.1) weights for both biogeographical regions combined ####
-################################################################-
-dat <- weight(df.habitat = df.land,   # landscape data
-               habitat = "landscape", # column name for habitat
-               area = "area_NRW",     # column name for area
-               df.data = dat,         # raw data
-               ID = "ID",             # default column name
-               year = "year",         # default column name
-               by_spec = TRUE,        # calculate weight by species (e.g., if number of sites differs between species due to exclusion)
-               species = "species",   # default column name
-               by_reg = FALSE,        # default
-               add.df = TRUE)         # default: returns an additional dataframe with weights per habitat and year (and species)
-# remark: here, KB.yes and SB.yes are not present in the dataset
-
-# rename "weight" to prevent overwriting in the next step
-colnames(dat)[colnames(dat) == "weight"] <- "weight.l"
-
-#### 4.2) weights for each biogeographical region separately ####
-#################################################################-
-## this is needed for species which are only modelled for one biogeographical region to guarantee a
-## representative weighting of landscapes per region
-
-dat <- weight(df.habitat = df.land,  # landscape data
-               habitat = "landscape", # column name for habitat
-               area = "area_NRW",     # column name for area
-               df.data = dat,        # raw data
-               ID = "ID",             # default column name
-               year = "year",         # default column name
-               by_spec = TRUE,        # calculate weight by species (e.g., if number of sites differs between species due to exclusion)
-               species = "species",   # default column name
-               by_reg = TRUE,         # calculate weights separately per region
-               region = "region",     # default column name
-               add.df = TRUE)         # default: returns an additional dataframe with weights per habitat and year (and species)
-# remark: here, several landscape combinations are not present in 'atl' and 'kon'
-
-# rename "weight"
-colnames(dat)[colnames(dat) == "weight"] <- "weight.l.r"
+# #### 4.1) weights for both biogeographical regions combined ####
+# ################################################################-
+# dat <- weight(df.habitat = df.land,   # landscape data
+#                habitat = "landscape", # column name for habitat
+#                area = "area_NRW",     # column name for area
+#                df.data = dat,         # raw data
+#                ID = "ID",             # default column name
+#                year = "year",         # default column name
+#                by_spec = TRUE,        # calculate weight by species (e.g., if number of sites differs between species due to exclusion)
+#                species = "species",   # default column name
+#                by_reg = FALSE,        # default
+#                add.df = TRUE)         # default: returns an additional dataframe with weights per habitat and year (and species)
+# # remark: here, KB.yes and SB.yes are not present in the dataset
+# 
+# # rename "weight" to prevent overwriting in the next step
+# colnames(dat)[colnames(dat) == "weight"] <- "weight.l"
+# 
+# #### 4.2) weights for each biogeographical region separately ####
+# #################################################################-
+# ## this is needed for species which are only modelled for one biogeographical region to guarantee a
+# ## representative weighting of landscapes per region
+# 
+# dat <- weight(df.habitat = df.land,  # landscape data
+#                habitat = "landscape", # column name for habitat
+#                area = "area_NRW",     # column name for area
+#                df.data = dat,        # raw data
+#                ID = "ID",             # default column name
+#                year = "year",         # default column name
+#                by_spec = TRUE,        # calculate weight by species (e.g., if number of sites differs between species due to exclusion)
+#                species = "species",   # default column name
+#                by_reg = TRUE,         # calculate weights separately per region
+#                region = "region",     # default column name
+#                add.df = TRUE)         # default: returns an additional dataframe with weights per habitat and year (and species)
+# # remark: here, several landscape combinations are not present in 'atl' and 'kon'
+# 
+# # rename "weight"
+# colnames(dat)[colnames(dat) == "weight"] <- "weight.l.r"
 
 #### 5) Model ####
 ##################-
@@ -343,8 +370,9 @@ for (sp in spec.list) {
     if (mod.fam %in% c("pois", "nb")) {
 
       if (zi.type == "none") {
-        mod.form <- bf(ab.c|weights(weight, scale = FALSE) ~
+        mod.form <- bf(ab2 ~
                          OE_25 +
+                         offset(log(off)) +
                          poly(PC1r, 2) + poly(PC2r, 2) + poly(PC3r, 2) +
                          (1|ID))
       }
@@ -354,59 +382,66 @@ for (sp in spec.list) {
     if (mod.fam %in% c("zip", "zinb")) {
 
       if (zi.type == "none") {
-        mod.form <- bf(ab.c|weights(weight, scale = FALSE) ~
+        mod.form <- bf(ab2 ~
                          OE_25 +
+                         offset(log(off)) +
                          poly(PC1r, 2) + poly(PC2r, 2) + poly(PC3r, 2) +
                          (1|ID),
                        zi ~ 1)
       }
 
       if (zi.type == "R") {
-        mod.form <- bf(ab.c|weights(weight, scale = FALSE) ~
+        mod.form <- bf(ab2 ~
                          OE_25 +
+                         offset(log(off)) +
                          poly(PC1r, 2) + poly(PC2r, 2) + poly(PC3r, 2) +
                          (1|ID),
-                       zi ~ region)
+                       zi ~ nat.region)
       }
 
       if (zi.type == "PCA") {
-        mod.form <- bf(ab.c|weights(weight, scale = FALSE) ~
+        mod.form <- bf(ab2 ~
                          OE_25 +
+                         offset(log(off)) +
                          poly(PC1r, 2) + poly(PC2r, 2) + poly(PC3r, 2) +
                          (1|ID),
                        zi ~ PC1r + PC2r + PC3r)
       }
 
       if (zi.type == "F") {
-        mod.form <- bf(ab.c|weights(weight, scale = FALSE) ~
+        mod.form <- bf(ab2 ~
                          OE_25 +
+                         offset(log(off)) +
                          poly(PC1r, 2) + poly(PC2r, 2) + poly(PC3r, 2) +
                          (1|ID),
                        zi ~ (1|ID))
       }
 
       if (zi.type == "RF") {
-        mod.form <- bf(ab.c|weights(weight, scale = FALSE) ~
+        mod.form <- bf(ab2 ~
                          OE_25 +
+                         offset(log(off)) +
                          poly(PC1r, 2) + poly(PC2r, 2) + poly(PC3r, 2) +
                          (1|ID),
-                       zi ~ region + (1|ID))
+                       zi ~ nat.region + (1|ID))
       }
 
       if (zi.type == "PCAF") {
-        mod.form <- bf(ab.c|weights(weight, scale = FALSE) ~
+        mod.form <- bf(ab2 ~
                          OE_25 +
+                         offset(log(off)) +
                          poly(PC1r, 2) + poly(PC2r, 2) + poly(PC3r, 2) +
                          (1|ID),
                        zi ~ PC1r + PC2r + PC3r + (1|ID))
       }
 
       if (zi.type == "PCARF") {
-        mod.form <- bf(ab.c|weights(weight, scale = FALSE) ~
+        mod.form <- bf(ab2 ~
                          OE_25 +
+                         offset(log(off)) +
                          poly(PC1r, 2) + poly(PC2r, 2) + poly(PC3r, 2) +
                          (1|ID),
-                       zi ~ region + PC1r + PC2r + PC3r + (1|ID))
+                       zi ~ nat.region + PC1r + PC2r + PC3r + (1|ID))
       }
 
     }
@@ -418,10 +453,17 @@ for (sp in spec.list) {
       S.dat <- droplevels(dat[dat$species == sp,])
       S.dat$weight <- S.dat$weight.l
       # update model formula
-      mod.form <- update(mod.form, ~ . + s(year.s, by = region) + region)
+      mod.form <- update(mod.form, ~ . + s(year.s, by = nat.region) + nat.region)
 
     }
 
+    ####################
+    ####################
+    ####################
+    ## add nat.region to atl/kon
+    ####################
+    ####################
+    ####################
     if (mod.bgr %in% c("atl", "kon")) {
       S.dat <- droplevels(dat[dat$species == sp & dat$region == as.character(mod.bgr),])
       S.dat$weight <- S.dat$weight.l.r
@@ -440,10 +482,30 @@ for (sp in spec.list) {
 
     #### 5.4) set priors
     ####################-
+    ## set more specific priors (less narrow for PCs)
 
     priors <- get_prior(mod.form,
                         data = S.dat, family = fam)
-    priors$prior[1] <- "normal(0, 2.5)"
+    # priors.norm <- priors
+    # priors.norm$prior[1] <- "normal(0, 2.5)"
+    # 
+    # priors.norm5 <- priors
+    # priors.norm5$prior[1] <- "normal(0, 2.5)"
+    # priors.norm5$prior[priors.norm5$coef %in% c("polyPC1r21", "polyPC1r22", 
+    #                                       "polyPC2r21", "polyPC2r22", 
+    #                                       "polyPC3r21", "polyPC3r22")] <- "normal(0, 5)"
+    # priors.norm5$prior[priors.norm5$prior == "" & priors.norm5$dpar == "zi" & priors.norm5$class == "b"] <- "normal(0, 2.5)"
+    # priors.norm5$prior[priors.norm5$coef %in% c("PC1r", "PC2r", "PC3r")] <- "normal(0, 5)"
+    
+    priors$prior[priors$dpar == "" & priors$class == "b" & priors$coef != ""] <- "normal(0, 2.5)"
+    priors$prior[priors$coef %in% c("polyPC1r21", "polyPC1r22", 
+                                                "polyPC2r21", "polyPC2r22", 
+                                                "polyPC3r21", "polyPC3r22")] <- "normal(0, 10)"
+    priors$prior[priors$prior == "" & priors$dpar == "zi" & priors$class == "b" & priors$coef != ""] <- "normal(0, 2.5)"
+    priors$prior[priors$coef %in% c("PC1r", "PC2r", "PC3r")] <- "normal(0, 10)"
+
+    
+    a.delta <- 0.95; max.td <- 9; nc <- 2; ni <- 2000; nw <- 1000
 
 
     #### 5.5) run model
@@ -456,10 +518,11 @@ for (sp in spec.list) {
                thin = 1,
                control = list(adapt_delta = a.delta, max_treedepth = max.td), prior = priors) 
 
-
     ## save model
     saveRDS(mod, paste0("./01_models/mod_", sp, "_", zi.type,  mod.fam, "_R", mod.bgr, "_", year1, "-", yearx, ".RDS"))
 
+    waic(mod)
+    
   } # end of for-loop (model)
 } # end of for-loop (species)
 
@@ -484,7 +547,7 @@ for (sp in spec.list){
 
   ## posterior predictions of response variable
   print(mod.stat(model.list = mods, model.name = names(mods),
-                 response = "ab.c",
+                 response = "ab2",
                  plot.stats = TRUE,
                  spec = sp))
 
@@ -525,8 +588,10 @@ for (sp in spec.list) {
   ## create newdat for model predictions
   if (mod.bgr == "both") {
     newdat <- expand.grid(year.s = seq(year1-year1, yearx-year1, length = 4*(yearx-year1)+1),
-                          region = levels(as.factor(c("atl", "kon"))),
+                          nat.region = levels(as.factor(S.dat$nat.region)),
+                          #region = levels(as.factor(S.dat$region)),
                           OE_25  = "none",
+                          off = 1, # abundance per 1 km²
                           PC1r   = mean(S.dat$PC1r),  
                           PC2r   = mean(S.dat$PC2r),  
                           PC3r   = mean(S.dat$PC3r))
@@ -534,8 +599,9 @@ for (sp in spec.list) {
 
   if (mod.bgr %in% c("atl", "kon")) {
     newdat <- expand.grid(year.s = seq(year1-year1, yearx-year1, length = 4*(yearx-year1)+1),
-                          region = as.factor(mod.bgr),
+                          nat.region = levels(as.factor(S.dat$nat.region)),
                           OE_25  = "none",
+                          off = 1, # abundance per 1 km²
                           PC1r   = mean(S.dat$PC1r),
                           PC2r   = mean(S.dat$PC2r),
                           PC3r   = mean(S.dat$PC3r))
@@ -553,23 +619,65 @@ for (sp in spec.list) {
   pred2.list  <- NULL
   newdat.list <- NULL
 
-  if (mod.bgr %in% c("both", "atl")) {
-    pred.list[["atl"]]       <- as.data.frame(t(fitted(mod, newdata = newdat,  summary = FALSE, re_formula = NA))[newdat$region == "atl",])
-    pred2.list[["atl"]]      <- as.data.frame(t(fitted(mod, newdata = newdat2,  summary = FALSE, re_formula = NA))[newdat$region == "atl",])
-    newdat.list[["atl"]]     <- newdat[newdat$region == "atl",]
-  }
+  # if (mod.bgr %in% c("both", "atl")) {
+  #   pred.list[["atl"]]       <- as.data.frame(t(fitted(mod, newdata = newdat,  summary = FALSE, re_formula = NA))[newdat$region == "atl",])
+  #   pred2.list[["atl"]]      <- as.data.frame(t(fitted(mod, newdata = newdat2,  summary = FALSE, re_formula = NA))[newdat$region == "atl",])
+  #   newdat.list[["atl"]]     <- newdat[newdat$region == "atl",]
+  # }
+  # 
+  # if (mod.bgr %in% c("both", "kon")) {
+  #   pred.list[["kon"]]       <- as.data.frame(t(fitted(mod, newdata = newdat,  summary = FALSE, re_formula = NA))[newdat$region == "kon",])
+  #   pred2.list[["kon"]]      <- as.data.frame(t(fitted(mod, newdata = newdat2,  summary = FALSE, re_formula = NA))[newdat$region == "kon",])
+  #   newdat.list[["kon"]]     <- newdat[newdat$region == "kon",]
+  # }
 
-  if (mod.bgr %in% c("both", "kon")) {
-    pred.list[["kon"]]       <- as.data.frame(t(fitted(mod, newdata = newdat,  summary = FALSE, re_formula = NA))[newdat$region == "kon",])
-    pred2.list[["kon"]]      <- as.data.frame(t(fitted(mod, newdata = newdat2,  summary = FALSE, re_formula = NA))[newdat$region == "kon",])
-    newdat.list[["kon"]]     <- newdat[newdat$region == "kon",]
+  for(nr in unique(newdat$nat.region)) {
+    pred.list[[nr]]       <- as.data.frame(t(fitted(mod, newdata = newdat,  summary = FALSE, re_formula = NA))[newdat$nat.region == nr,])
+    pred2.list[[nr]]      <- as.data.frame(t(fitted(mod, newdata = newdat2,  summary = FALSE, re_formula = NA))[newdat$nat.region == nr,])
+    newdat.list[[nr]]     <- newdat[newdat$nat.region == nr,]    
+    
   }
-
+  
   if (mod.bgr == "both") {
-    pred.list[["overall"]]   <- pred.list[["atl"]]*0.555 + pred.list[["kon"]]*0.445 
+
+    pred.list[["atl"]]   <- pred.list[["A"]]*0.117 + 
+      pred.list[["B"]]*0.209 + 
+      pred.list[["KB"]]*0.051 + 
+      pred.list[["KM"]]*0.151 + 
+      #pred.list[["SB"]]*0.0001 + 
+      pred.list[["ST"]]*0.351 + 
+      pred.list[["metro"]]*0.121 
+    
+    pred2.list[["atl"]]   <- pred2.list[["A"]]*0.117 + 
+      pred2.list[["B"]]*0.209 + 
+      pred2.list[["KB"]]*0.051 + 
+      pred2.list[["KM"]]*0.151 + 
+      #pred2.list[["SB"]]*0.0001 + 
+      pred2.list[["ST"]]*0.351 + 
+      pred2.list[["metro"]]*0.121 
+    
+    pred.list[["kon"]]   <- pred.list[["A"]]*0.021 + 
+      pred.list[["B"]]*0.092 + 
+      pred.list[["KB"]]*0.201 + 
+      pred.list[["KM"]]*0.004 + 
+      pred.list[["SB"]]*0.647 + 
+      pred.list[["ST"]]*0.012 + 
+      pred.list[["metro"]]*0.023 
+    
+    pred2.list[["kon"]]   <- pred2.list[["A"]]*0.021 + 
+      pred2.list[["B"]]*0.092 + 
+      pred2.list[["KB"]]*0.201 + 
+      pred2.list[["KM"]]*0.004 + 
+      pred2.list[["SB"]]*0.647 + 
+      pred2.list[["ST"]]*0.012 + 
+      pred2.list[["metro"]]*0.023 
+      
+    pred.list[["overall"]]  <- pred.list[["atl"]]*0.555 + pred.list[["kon"]]*0.445
     pred2.list[["overall"]]  <- pred2.list[["atl"]]*0.555 + pred2.list[["kon"]]*0.445
-    newdat.list[["overall"]] <- newdat.list[["kon"]]
-    newdat.list[["overall"]]$region <- "overall"
+    newdat.list[["overall"]] <- newdat.list[["kon"]] <- newdat.list[["atl"]] <- newdat.list[["A"]]
+    newdat.list[["overall"]]$nat.region <- "overall"
+    newdat.list[["atl"]]$nat.region <- "atl"
+    newdat.list[["kon"]]$nat.region <- "kon"
   }
 
   ## loop through regions
@@ -617,7 +725,7 @@ for (sp in spec.list) {
     ############################-
     diff.lt <- pred.r[newdat.r$year == yearP,] - pred.r[newdat.r$year == yearP-period,]
 
-    lt.tbl <- data.frame(region = r)
+    lt.tbl <- data.frame(nat.region = r)
     lt.tbl$lwr    <- apply(X = diff.lt, MARGIN = 1, FUN = quantile, prob = 0.025)
     lt.tbl$lwr25  <- apply(X = diff.lt, MARGIN = 1, FUN = quantile, prob = 0.25)
     lt.tbl$fit    <- apply(X = diff.lt, MARGIN = 1, FUN = quantile, prob = 0.5)
@@ -650,31 +758,32 @@ for (sp in spec.list) {
     geom_hline(yintercept = 0, lty = "dashed", linewidth = 0.5) +
 
     # add raw data (colored dots)
-    geom_beeswarm(data = S.dat, aes(x = year, y = ab.c, color = region),
+    geom_beeswarm(data = S.dat, aes(x = year, y = ab2/2, color = nat.region),
                   size = 0.5, cex = 0.3, alpha = 0.5) +
 
     # add trend
     geom_ribbon(data = newdat.total[newdat.total$species == sp,],
-                aes(x = year, ymin = lwr, ymax = upr, color = region, fill = region),
+                aes(x = year, ymin = lwr, ymax = upr, color = nat.region, fill = nat.region),
                 alpha = 0.3) +
     geom_line(data = newdat.total[newdat.total$species == sp,],
-              aes(x = year, y = fit, color = region),
+              aes(x = year, y = fit, color = nat.region),
               lwd = 1) +
 
     # add sign. slope
-    geom_line(aes(year, fit.incr, group = region),
+    geom_line(aes(year, fit.incr, group = nat.region),
               data = newdat.total[newdat.total$species == sp,],
               col = "black", lty = 1, linewidth = 1, na.rm = TRUE) +
-    geom_line(aes(year, fit.decr, group = region), 
+    geom_line(aes(year, fit.decr, group = nat.region), 
               data = newdat.total[newdat.total$species == sp,],
               col = "black", lty = 1, linewidth = 1, na.rm = TRUE) +
 
 
     # add labs
-    ylim(0, max(c(S.dat$ab.c, newdat.total$upr[newdat.total$species == sp]))) +
+    ylim(0, max(c(S.dat$ab2/2, newdat.total$upr[newdat.total$species == sp]))) +
     labs(x = "year", y = "abundance per km²",
          title = paste0(sp, " (", mod.fam, ", ", zi.type, ")"),
          subtitle = "black = period of robust increase/decrease") +
+    facet_wrap(~nat.region) +
     theme_classic()
 
   # add region specific colors
