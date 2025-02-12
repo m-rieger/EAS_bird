@@ -61,6 +61,9 @@ yearI <- 2006
 period <- 12
 yearP  <- yearx-1 # here: 2019
 
+## do you want to save plots per species as pdf (TRUE) or not (FALSE)?
+PDF <- TRUE
+
 ## define some model parameters
 ## --> do you want to do a model selection (TRUE) or only model the 
 ##     final model (FALSE) 
@@ -183,9 +186,6 @@ dat <- obs.eff(data = dat,
 #### 2.2) further adaptions ####
 ###############################-
 
-## round up .5 abundances
-dat$ab.c <- ceiling(dat$abundance)
-
 ## use 2*abundance with offset 2
 dat$ab2 <- 2*dat$abundance
 dat$off <- 2
@@ -262,9 +262,9 @@ df.PCA$PC3r <- pca.RotatedScores[,3]
 dat <- left_join(dat, df.PCA, by = c("ID", "year", "region"))
 
 ## save rotated loadings
-write.csv(df.PCA, paste0("./00_additional data/PCA_scores_", year1, "-", yearx, ".csv"), 
+write.csv(df.PCA, paste0("./02_output/PCA_scores_", year1, "-", yearx, ".csv"), 
           row.names = F, fileEncoding = "latin1")
-write.csv(rot.df, paste0("./00_additional data/PCA_rotated_loadings_", year1, "-", yearx, ".csv"), 
+write.csv(rot.df, paste0("./02_output/PCA_rotated_loadings_", year1, "-", yearx, ".csv"), 
           row.names = F, fileEncoding = "latin1")
 
 ## remove objects to free memory
@@ -295,44 +295,47 @@ df.land.bgr$prop.area <- round(df.land.bgr$area_ov/df.land.bgr$area_bgr, 4)
 #### 4) weights ####
 ####################-
 # this is done for each species separately since the exclusion of OK = 0 values is species-specific
+# NOTE: weights were removed from the analysis but they might be handy if you 
+# want to check whether your habitat/landscape/natural regions are balanced 
+# (weight ~ 1) or not (overrepresented: weight < 1, underrepresented: weight > 1)
 
-# #### 4.1) weights for both biogeographical regions combined ####
-# ################################################################-
-# dat <- weight(df.habitat = df.land,   # landscape data
-#                habitat = "landscape", # column name for habitat
-#                area = "area_NRW",     # column name for area
-#                df.data = dat,         # raw data
-#                ID = "ID",             # default column name
-#                year = "year",         # default column name
-#                by_spec = TRUE,        # calculate weight by species (e.g., if number of sites differs between species due to exclusion)
-#                species = "species",   # default column name
-#                by_reg = FALSE,        # default
-#                add.df = TRUE)         # default: returns an additional dataframe with weights per habitat and year (and species)
-# # remark: here, KB.yes and SB.yes are not present in the dataset
-# 
-# # rename "weight" to prevent overwriting in the next step
-# colnames(dat)[colnames(dat) == "weight"] <- "weight.l"
-# 
-# #### 4.2) weights for each biogeographical region separately ####
-# #################################################################-
-# ## this is needed for species which are only modelled for one biogeographical region to guarantee a
-# ## representative weighting of landscapes per region
-# 
-# dat <- weight(df.habitat = df.land,  # landscape data
-#                habitat = "landscape", # column name for habitat
-#                area = "area_NRW",     # column name for area
-#                df.data = dat,        # raw data
-#                ID = "ID",             # default column name
-#                year = "year",         # default column name
-#                by_spec = TRUE,        # calculate weight by species (e.g., if number of sites differs between species due to exclusion)
-#                species = "species",   # default column name
-#                by_reg = TRUE,         # calculate weights separately per region
-#                region = "region",     # default column name
-#                add.df = TRUE)         # default: returns an additional dataframe with weights per habitat and year (and species)
-# # remark: here, several landscape combinations are not present in 'atl' and 'kon'
-# 
-# # rename "weight"
-# colnames(dat)[colnames(dat) == "weight"] <- "weight.l.r"
+#### 4.1) weights for both biogeographical regions combined ####
+################################################################-
+dat <- weight(df.habitat = df.land,   # landscape data
+               habitat = "landscape", # column name for habitat
+               area = "area_NRW",     # column name for area
+               df.data = dat,         # raw data
+               ID = "ID",             # default column name
+               year = "year",         # default column name
+               by_spec = TRUE,        # calculate weight by species (e.g., if number of sites differs between species due to exclusion)
+               species = "species",   # default column name
+               by_reg = FALSE,        # default
+               add.df = TRUE)         # default: returns an additional dataframe with weights per habitat and year (and species)
+# remark: here, KB.yes and SB.yes are not present in the dataset
+
+# rename "weight" to prevent overwriting in the next step
+colnames(dat)[colnames(dat) == "weight"] <- "weight.l"
+
+#### 4.2) weights for each biogeographical region separately ####
+#################################################################-
+## this is needed for species which are only modelled for one biogeographical region to guarantee a
+## representative weighting of landscapes per region
+
+dat <- weight(df.habitat = df.land,  # landscape data
+               habitat = "landscape", # column name for habitat
+               area = "area_NRW",     # column name for area
+               df.data = dat,        # raw data
+               ID = "ID",             # default column name
+               year = "year",         # default column name
+               by_spec = TRUE,        # calculate weight by species (e.g., if number of sites differs between species due to exclusion)
+               species = "species",   # default column name
+               by_reg = TRUE,         # calculate weights separately per region
+               region = "region",     # default column name
+               add.df = TRUE)         # default: returns an additional dataframe with weights per habitat and year (and species)
+# remark: here, several landscape combinations are not present in 'atl' and 'kon'
+
+# rename "weight"
+colnames(dat)[colnames(dat) == "weight"] <- "weight.l.r"
 
 #### 5) Model ####
 ##################-
@@ -365,7 +368,7 @@ if (!is.null(Spec.sub)) {
 }
 
 ## save raw data
-write.csv(dat[dat$species %in% spec.list,], "./00_additional data/Data_modelling.csv",
+write.csv(dat[dat$species %in% spec.list,], "./02_output/Data_modelling.csv",
           fileEncoding = "latin1")
 
 ## for-loop for all species in spec.list
@@ -512,10 +515,10 @@ df.conv <- data.frame()
 df.stat <- data.frame()
 df.kfold <- data.frame()
 
-
-
+## loop through species
 for (sp in spec.list){
 
+  ## load models
   mod.list <- list.files(path = "./01_models", pattern = sp)
   mods <- list()
   for (i in 1:length(mod.list))  {
@@ -565,10 +568,8 @@ for (sp in spec.list){
     tmp.kfold$top <- ifelse(tmp.kfold$upr5 >= 0, "yes SE", 
                      ifelse(tmp.kfold$upr >= 0, "yes 1.96*SE", "no"))
     
-    ## check model convergence
-    ##########################
-    ##########################
-    ##########################
+    ## IMPORTANT: check issues with model convergence of final models and if any, 
+    # select the next best and most parsimonious model
 
     tmp.kfold <- tmp.kfold %>% 
       mutate("final SE" = ifelse(npar == min(npar[top == "yes SE"]), TRUE, FALSE),
@@ -674,7 +675,8 @@ for (sp in spec.list) {
   zi.type <- df.spec$modZI[df.spec$species == sp  & df.spec$modFINAL == "yes"] 
 
   ## get final model and raw data
-  mod <- readRDS(paste0("./01_models/mod_", sp, "_", zi.type,  mod.fam, "_R", mod.bgr, "_", year1, "-", yearx, ".RDS"))
+  mod <- readRDS(paste0("./01_models/mod_", sp, "_", zi.type,  mod.fam, "_R", 
+                        mod.bgr, "_", year1, "-", yearx, ".RDS"))
   S.dat <- mod$data
   S.dat$year <- S.dat$year.s + year1
   
@@ -729,7 +731,7 @@ for (sp in spec.list) {
 
   ## extract predictions and newdat per nat. region in lists, add overall
   # predictions and per biogeographical region weighted by proportion of
-  # nat. regions in NRW
+  # nat. regions in NRW (or biog. regions)
   predL   <- list()
   newdatL <- list()
 
@@ -871,7 +873,8 @@ for (sp in spec.list) {
   newdat.total$fit.slope[!is.na(newdat.total$pw.slope)] <- newdat.total$fit[!is.na(newdat.total$pw.slope)]
   newdat.total$fit.slope.i[!is.na(newdat.total$pw.slope.i)] <- newdat.total$fit.i[!is.na(newdat.total$pw.slope.i)]
   
-  pdf(file = paste0("./02_output/PostPred_", sp, "_",  year1, "-", yearx ,".pdf"))
+  if(PDF) pdf(file = paste0("./02_output/PostPred_", sp, "_",  year1, "-", yearx ,".pdf"))
+  
   ## nat. regions
   ###############-
   tmp <- newdat.total[newdat.total$species == sp & 
@@ -906,10 +909,6 @@ for (sp in spec.list) {
   
   plot.lt(newdat = tmp, group = "region")
 
-  dev.off()
+  if(PDF) dev.off()
 
 } ## end of species loop
-
-## add coefficient table ##
-###########################
-###########################
