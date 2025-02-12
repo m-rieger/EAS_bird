@@ -7,6 +7,10 @@ EAS_bird.Rproj
 01_models
 02_output
 data/data_full
+data/OEFS_Paper_LandscapeNRW.csv
+data/OEFS_Paper_RawData.csv
+data/OEFS_Paper_SiteInfo.csv
+data/OEFS_Paper_SpeciesInfo.csv
 EAS_bird_fullmodel.R
 EAS_bird_OE20.R
 EAS_bird_OE30.R
