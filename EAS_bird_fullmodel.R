@@ -100,24 +100,25 @@ if (csr == FALSE) {
 ## define species subset
 # in case you want to model only some species, e.g. c("Common Blackbird", "White Wagtail")
 # if NULL, all available species will be used
-Spec.sub <- c("Common Blackbird", # nb
-             "Common Kestrel", # pois
-             "Eurasian Jay", # pois
-             #"Heckenbraunelle", # zinb F
-             "Eurasian Blackcap", # zinb none
-             "Eurasian Magpie", # zinb PCA
-             "Carrion Crow", # zinb PCAF
-             "Marsh Tit", # zinb PCARF
-             "Common Chiffchaff",  # zinb R
-             # "Zaunkönig", # zinb R
-             "Great Tit", # zinb RF
-             #"Nachtigall", # zip F
-             "Common Chaffinch", # zip none
-             #"Gartenrotschwanz", # zip PCA
-             "White Wagtail", # zip PCAF
-             "Great Spotted Woodpecker", # zip PCARF
-             "Willow Tit", # zip R
-             "Common House Martin") # zip RF
+Spec.sub <- NULL
+# c("Common Blackbird", # nb
+#              "Common Kestrel", # pois
+#              "Eurasian Jay", # pois
+#              #"Heckenbraunelle", # zinb F
+#              "Eurasian Blackcap", # zinb none
+#              "Eurasian Magpie", # zinb PCA
+#              "Carrion Crow", # zinb PCAF
+#              "Marsh Tit", # zinb PCARF
+#              "Common Chiffchaff",  # zinb R
+#              # "Zaunkönig", # zinb R
+#              "Great Tit", # zinb RF
+#              #"Nachtigall", # zip F
+#              "Common Chaffinch", # zip none
+#              #"Gartenrotschwanz", # zip PCA
+#              "White Wagtail", # zip PCAF
+#              "Great Spotted Woodpecker", # zip PCARF
+#              "Willow Tit", # zip R
+#              "Common House Martin") # zip RF
 
 ## read raw data files
 df.raw  <- read.csv("./data/EAS_bird_RawData.csv",      sep = ",", encoding = "latin1")
@@ -559,6 +560,8 @@ mod.fam <- "zip"; zi.type <- "PCA"; fam <- zero_inflated_poisson(link = "log")
 
 for (sp in spec.listB) {
   
+  if(length(list.files(path = "./01_models", pattern = paste0(sp, "_PCAzip"))) != 0) next
+
   mod <- brm(mod.form.PC,
              cores = ncores, 
              iter = ni,
@@ -967,6 +970,7 @@ df.conv  <- data.frame()
 df.waic  <- data.frame()
 df.loo   <- data.frame()
 df.kfold <- data.frame()
+df.par   <- data.frame()
 
 for (sp in spec.list){
 
@@ -974,10 +978,14 @@ for (sp in spec.list){
   mods <- list()
   for (i in 1:length(mod.list))  {
     m <- unlist(strsplit(mod.list[i], split = "_"))[3]
+    if(m %in% c("RFzip", "RFzinb", "PCAFzip", "PCAFzinb", "PCARFzip", "PCARFzinb")) next
     mods[[m]]  <- readRDS(paste0("./01_models/", mod.list[i]))
-    # print(mod.list[i])
-    # print(mods[[m]]$formula)
-    # print(mods[[m]]$family)
+    
+    ## get number of parameters per model
+    tmp.par <- data.frame(model = m, npar = length(as_draws_list(mods[[m]])[[1]]),
+                         species = sp)
+    
+    df.par <- rbind(df.par, tmp.par)
   }
 
   # ## posterior predictions of response variable
@@ -999,53 +1007,73 @@ for (sp in spec.list){
   # dev.off()
   # 
   # df.conv <- rbind(df.conv, tmp.conv)
-  # 
-  # tmp.waic <- as.data.frame(waic(mods[["nonepois"]], mods[["nonenb"]], 
-  #                  mods[["nonezip"]], mods[["nonezinb"]],
-  #                  mods[["Rzip"]], mods[["Rzinb"]],
-  #                  mods[["PCAzip"]], mods[["PCAzinb"]],
-  #                  mods[["Fzip"]], mods[["Fzinb"]],
-  #                  mods[["RFzip"]], mods[["RFzinb"]],
-  #                  mods[["PCAFzip"]], mods[["PCAFzinb"]],
-  #                  mods[["PCARFzip"]], mods[["PCARFzinb"]])[["diffs"]])
-  # 
-  # tmp.waic$model <- rownames(tmp.waic)
-  # tmp.waic$model <- gsub('.*\\\"([^\"]+)\\\".*', '\\1', tmp.waic$model)
-  # tmp.waic$species <- sp
-  # 
-  # df.waic <- rbind(df.waic, tmp.waic)
-  
-  tmp.loo <- as.data.frame(loo(mods[["nonepois"]], mods[["nonenb"]], 
+
+  ## waic
+  tmp.waic <- as.data.frame(waic(mods[["nonepois"]], mods[["nonenb"]],
+                  mods[["nonezip"]], mods[["nonezinb"]],
+                  mods[["Rzip"]], mods[["Rzinb"]],
+                  mods[["PCAzip"]], mods[["PCAzinb"]],
+                  mods[["Fzip"]], mods[["Fzinb"]]#,
+                  # mods[["RFzip"]], mods[["RFzinb"]],
+                  # mods[["PCAFzip"]], mods[["PCAFzinb"]],
+                  # mods[["PCARFzip"]], mods[["PCARFzinb"]]
+                  )[["diffs"]])
+
+  tmp.waic$model <- rownames(tmp.waic)
+  tmp.waic$model <- gsub('.*\\\"([^\"]+)\\\".*', '\\1', tmp.waic$model)
+  tmp.waic$species <- sp
+
+  df.waic <- rbind(df.waic, tmp.waic)
+
+  ## loo
+  tmp.loo <- as.data.frame(loo(mods[["nonepois"]], mods[["nonenb"]],
                                  mods[["nonezip"]], mods[["nonezinb"]],
                                  mods[["Rzip"]], mods[["Rzinb"]],
                                  mods[["PCAzip"]], mods[["PCAzinb"]],
-                                 mods[["Fzip"]], mods[["Fzinb"]],
-                                 mods[["RFzip"]], mods[["RFzinb"]],
-                                 mods[["PCAFzip"]], mods[["PCAFzinb"]],
-                                 mods[["PCARFzip"]], mods[["PCARFzinb"]])[["diffs"]])
-  
+                                 mods[["Fzip"]], mods[["Fzinb"]]#,
+                                 # mods[["RFzip"]], mods[["RFzinb"]],
+                                 # mods[["PCAFzip"]], mods[["PCAFzinb"]],
+                                 # mods[["PCARFzip"]], mods[["PCARFzinb"]]
+                               )[["diffs"]])
+
   tmp.loo$model <- rownames(tmp.loo)
   tmp.loo$model <- gsub('.*\\\"([^\"]+)\\\".*', '\\1', tmp.loo$model)
   tmp.loo$species <- sp
-  
+
   df.loo <- rbind(df.loo, tmp.loo)
-  
-  
-  # tmp.kfold <- as.data.frame(loo_compare(mods[["nonepois"]], mods[["nonenb"]], 
-  #                                        mods[["nonezip"]], mods[["nonezinb"]],
-  #                                        mods[["Rzip"]], mods[["Rzinb"]],
-  #                                        mods[["PCAzip"]], mods[["PCAzinb"]],
-  #                                        mods[["Fzip"]], mods[["Fzinb"]],
-  #                                        mods[["RFzip"]], mods[["RFzinb"]],
-  #                                        mods[["PCAFzip"]], mods[["PCAFzinb"]],
-  #                                        mods[["PCARFzip"]], mods[["PCARFzinb"]],
-  #                                        criterion = "kfold"))
-  # 
-  # tmp.kfold$model <- rownames(tmp.kfold)
-  # tmp.kfold$model <- gsub('.*\\\"([^\"]+)\\\".*', '\\1', tmp.kfold$model)
-  # tmp.kfold$species <- sp
-  # 
-  # df.kfold <- rbind(df.kfold, tmp.kfold)
+
+  ## kfold 16k
+  if(sp %in% c("Common Buzzard", "Dunnock", "Eurasian Skylark")) {
+    tmp.kfold <- as.data.frame(loo_compare(mods[["nonepois"]],
+                                          mods[["nonezip"]], mods[["nonezinb"]],
+                                          mods[["Rzip"]], mods[["Rzinb"]],
+                                          mods[["PCAzip"]], mods[["PCAzinb"]],
+                                          mods[["Fzip"]], mods[["Fzinb"]],
+                                          # mods[["RFzip"]], mods[["RFzinb"]],
+                                          # mods[["PCAFzip"]], mods[["PCAFzinb"]],
+                                          # mods[["PCARFzip"]], mods[["PCARFzinb"]],
+                                          criterion = "kfold"))
+  }
+  else{
+
+  tmp.kfold <- as.data.frame(loo_compare(mods[["nonepois"]], mods[["nonenb"]],
+                                          mods[["nonezip"]], mods[["nonezinb"]],
+                                          mods[["Rzip"]], mods[["Rzinb"]],
+                                          mods[["PCAzip"]], mods[["PCAzinb"]],
+                                          mods[["Fzip"]], mods[["Fzinb"]],
+                                          # mods[["RFzip"]], mods[["RFzinb"]],
+                                          # mods[["PCAFzip"]], mods[["PCAFzinb"]],
+                                          # mods[["PCARFzip"]], mods[["PCARFzinb"]],
+                                          criterion = "kfold"))
+  }
+
+
+
+  tmp.kfold$model <- rownames(tmp.kfold)
+  tmp.kfold$model <- gsub('.*\\\"([^\"]+)\\\".*', '\\1', tmp.kfold$model)
+  tmp.kfold$species <- sp
+
+  df.kfold <- rbind(df.kfold, tmp.kfold)
 
 }
 
@@ -1058,6 +1086,8 @@ write.csv(df.waic, "./01_models/mod_selection/00_ModSelection_WAIC.csv",
 write.csv(df.loo, "./01_models/mod_selection/00_ModSelection_LOO.csv", 
           row.names = F, fileEncoding = "latin1")
 write.csv(df.kfold, "./01_models/mod_selection/00_ModSelection_kfold16.csv", 
+          row.names = F, fileEncoding = "latin1")
+write.csv(df.par, "./01_models/mod_selection/00_ModSelection_Nparameter.csv", 
           row.names = F, fileEncoding = "latin1")
 
 # plan(multisession)

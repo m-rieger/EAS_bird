@@ -1,13 +1,62 @@
-"species","species_sci","modR","modZI","modFAM","modFINAL"
-"Common Redstart","Phoenicurus phoenicurus","atl","PCA","zip","yes"
-"Common Blackbird","Turdus merula","both","none","nb","yes"
-"White Wagtail","Motacilla alba","both","PCAF","zip","yes"
-"Common Chiffchaff","Phylloscopus collybita","both","R","zinb","yes"
-"Common Blackbird","Turdus merula","both","none","pois","no"
-"White Wagtail","Motacilla alba","both","none","pois","no"
-"Common Chiffchaff","Phylloscopus collybita","both","R","zip","no"
-"Common Redstart","Phoenicurus phoenicurus","atl","PCA","zinb","no"
-"Common Blackbird","Turdus merula","both","none","zinb","no"
-"White Wagtail","Motacilla alba","both","R","zip","no"
-"Common Chiffchaff","Phylloscopus collybita","both","PCA","zinb","no"
-"Common Redstart","Phoenicurus phoenicurus","atl","none","zip","no"
+species,species_sci,modR,modFAM,modZI,modFINAL
+Eurasian Magpie,Pica pica,both,F,zinb,TRUE
+European Goldfinch,Carduelis carduelis,both,F,zinb,TRUE
+House Sparrow,Passer domesticus,both,F,zinb,TRUE
+Great Spotted Woodpecker,Dendrocopos major,both,F,zinb,TRUE
+Common House Martin,Delichon urbicum,both,F,zinb,TRUE
+Marsh Tit,Poecile palustris,both,F,zinb,TRUE
+Tawny Owl,Strix aluco,both,F,zip,TRUE
+Common Linnet,Carduelis cannabina,both,F,zip,TRUE
+Spotted Flycatcher,Muscicapa striata,both,F,zip,TRUE
+Common Buzzard,Buteo buteo,both,F,zip,TRUE
+European Pied Flycatcher,Ficedula hypoleuca,both,F,zip,TRUE
+Firecrest,Regulus ignicapilla,both,F,zinb,TRUE
+Common Pheasant,Phasianus colchicus,both,none,nb,TRUE
+Tree Pipit,Anthus trivialis,both,none,nb,TRUE
+European Serin,Serinus serinus,both,none,nb,TRUE
+Yellowhammer,Emberiza citrinella,both,none,nb,TRUE
+Eurasian Blue Tit,Cyanistes caeruleus,both,none,nb,TRUE
+Eurasian Blackcap,Sylvia atricapilla,both,none,nb,TRUE
+Common Wood Pigeon,Columba palumbus,both,none,nb,TRUE
+Song Thrush,Turdus philomelos,both,none,nb,TRUE
+Willow Warbler,Phylloscopus trochilus,both,none,nb,TRUE
+Eurasian Wren,Troglodytes troglodytes,both,none,nb,TRUE
+Common Chiffchaff,Phylloscopus collybita,both,none,nb,TRUE
+Common Starling,Sturnus vulgaris,both,none,nb,TRUE
+Coal Tit,Periparus ater,both,none,nb,TRUE
+European Green Woodpecker,Picus viridis,both,none,pois,TRUE
+Stock Dove,Columba oenas,both,none,pois,TRUE
+Eurasian Nuthatch,Sitta europaea,both,none,pois,TRUE
+Eurasian Tree Sparrow,Passer montanus,both,none,zinb,TRUE
+European Robin,Erithacus rubecula,both,none,zinb,TRUE
+Great Tit,Parus major,both,none,zinb,TRUE
+Common Blackbird,Turdus merula,both,none,zinb,TRUE
+European Greenfinch,Chloris chloris,both,none,zinb,TRUE
+Common Whitethroat,Sylvia communis,both,none,zinb,TRUE
+Hawfinch,Coccothraustes coccothraustes,both,none,zinb,TRUE
+Common Goldcrest,Regulus regulus,both,none,zinb,TRUE
+Dunnock,Prunella modularis,both,none,zinb,TRUE
+White Wagtail,Motacilla alba,both,none,zinb,TRUE
+Eurasian Skylark,Alauda arvensis,both,none,zinb,TRUE
+Garden Warbler,Sylvia borin,both,none,zinb,TRUE
+Icterine Warbler,Hippolais icterina,both,none,zinb,TRUE
+Black Redstart,Phoenicurus ochruros,both,none,zip,TRUE
+Lesser Whitethroat,Sylvia curruca,both,none,zip,TRUE
+Common Swift,Apus apus,both,none,zip,TRUE
+Mistle Thrush,Turdus viscivorus,both,none,zip,TRUE
+Mallard,Anas platyrhynchos,both,none,zip,TRUE
+Eurasian Woodcock,Scolopax rusticola,both,none,zip,TRUE
+Willow Tit,Poecile montanus,both,none,zip,TRUE
+Short-toed Treecreeper,Certhia brachydactyla,both,PCA,zinb,TRUE
+Eurasian Jay,Garrulus glandarius,both,PCA,zinb,TRUE
+Common Chaffinch,Fringilla coelebs,both,PCA,zinb,TRUE
+European Crested Tit,Lophophanes cristatus,both,PCA,zinb,TRUE
+Carrion Crow,Corvus corone,both,PCA,zinb,TRUE
+Fieldfare,Turdus pilaris,both,PCA,zinb,TRUE
+Long-tailed Tit,Aegithalos caudatus,both,PCA,zip,TRUE
+Eurasian Bullfinch,Pyrrhula pyrrhula,both,PCA,zip,TRUE
+Grey Wagtail,Motacilla cinerea,both,PCA,zip,TRUE
+Barn Swallow,Hirundo rustica,both,R,zinb,TRUE
+Marsh Warbler,Acrocephalus palustris,both,R,zinb,TRUE
+Eurasian Collared Dove,Streptopelia decaocto,both,R,zinb,TRUE
+Common Kestrel,Falco tinnunculus,both,R,zip,TRUE

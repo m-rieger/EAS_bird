@@ -48,6 +48,7 @@ if (!"EAS" %in% installed.packages()) {
   devtools::install_github("m-rieger/EAS")
 }
 library(EAS)
+source("./EAS_bird_plots.R")
 
 ## define first (year1) and last year (yearx)
 year1 <- 2002
@@ -61,23 +62,28 @@ period <- 12
 yearP  <- yearx-1 # here: 2019
 
 ## define some model parameters
-## --> do you want to do a (faster) test run, e.g. with fewer chains and iterations (TRUE) or the original run with (FALSE)?
+## --> do you want to do a model selection (TRUE) or only model the 
+##     final model (FALSE) 
+mod.sel <- FALSE
+
+## --> do you want to do a (faster) test run, e.g. with fewer iterations (TRUE) 
+##     or the original run with (FALSE)?
 test <- TRUE
 
 if (test == TRUE) {
   nc <- 4           # no. of chains
-  ni <- 3000        # no. of iterations (incl. warm-up)
-  nw <- 1500        # no. of iterations (warm-up only)
+  ni <- 2000        # no. of iterations (incl. warm-up)
+  nw <- 1000        # no. of iterations (warm-up only)
   a.delta <- 0.95   # adapt_delta value
   max.td  <- 10     # max_treedepth value
 }
 
 if (test == FALSE) {
-  nc <- 8           # no. of chains
-  ni <- 5500        # no. of iterations (incl. warm-up)
-  nw <- 1500        # no. of iterations (warm-up only)
-  a.delta <- 0.9999 # adapt_delta value
-  max.td  <- 15     # max_treedepth value
+  nc <- 4           # no. of chains
+  ni <- 3000        # no. of iterations (incl. warm-up)
+  nw <- 1000        # no. of iterations (warm-up only)
+  a.delta <- 0.99 # adapt_delta value
+  max.td  <- 10     # max_treedepth value
 }
 
 
@@ -86,8 +92,8 @@ cores <- detectCores() # get the number of cores for parallelization
 
 if (csr == TRUE) {
   backend <- "cmdstanr"
-  thread  <- floor((cores-1)/2)
-  ncores  <- 2
+  ncores  <- 4
+  thread  <- cores/ncores
 }
 
 if (csr == FALSE) {
@@ -156,6 +162,22 @@ dat <- obs.eff(data = dat,
                abundance = "abundance", # default column name
                year = "year",           # default column name
                OE = 0.25,               # default threshold of 25% to delineate observer effect
+               add.df = TRUE)           # default: returns an additional dataframe with observer effects per site and year
+
+## based on the default deviation of 20% (for comparison)
+dat <- obs.eff(data = dat,
+               ID = "ID",               # default column name
+               abundance = "abundance", # default column name
+               year = "year",           # default column name
+               OE = 0.20,               # default threshold of 25% to delineate observer effect
+               add.df = TRUE)           # default: returns an additional dataframe with observer effects per site and year
+
+## based on the default deviation of 30% (for comparison)
+dat <- obs.eff(data = dat,
+               ID = "ID",               # default column name
+               abundance = "abundance", # default column name
+               year = "year",           # default column name
+               OE = 0.30,               # default threshold of 25% to delineate observer effect
                add.df = TRUE)           # default: returns an additional dataframe with observer effects per site and year
 
 #### 2.2) further adaptions ####
@@ -239,6 +261,12 @@ df.PCA$PC3r <- pca.RotatedScores[,3]
 ## combine dat with PCA scores
 dat <- left_join(dat, df.PCA, by = c("ID", "year", "region"))
 
+## save rotated loadings
+write.csv(df.PCA, paste0("./00_additional data/PCA_scores_", year1, "-", yearx, ".csv"), 
+          row.names = F, fileEncoding = "latin1")
+write.csv(rot.df, paste0("./00_additional data/PCA_rotated_loadings_", year1, "-", yearx, ".csv"), 
+          row.names = F, fileEncoding = "latin1")
+
 ## remove objects to free memory
 rm(pca.inverse)
 rm(pca.RotatedScores)
@@ -312,7 +340,9 @@ df.land.bgr$prop.area <- round(df.land.bgr$area_ov/df.land.bgr$area_bgr, 4)
 ## create list of species which you want to model, either
 
 # ... automatically based on whether it can be modelled or not
-if (is.null(Spec.sub)) spec.list <- sort(as.character(unique(df.spec$species[!is.na(df.spec$modFAM)])))
+if (is.null(Spec.sub)) {
+  spec.list <- sort(as.character(unique(df.spec$species[!is.na(df.spec$modFAM)])))
+}
 
 # ... or based on the species subset which was defined in the beginning
 if (!is.null(Spec.sub)) {
@@ -334,7 +364,9 @@ if (!is.null(Spec.sub)) {
 
 }
 
-
+## save raw data
+write.csv(dat[dat$species %in% spec.list,], "./00_additional data/Data_modelling.csv",
+          fileEncoding = "latin1")
 
 ## for-loop for all species in spec.list
 
@@ -342,20 +374,21 @@ for (sp in spec.list) {
 
   ## get information from df.spec
   mod.bgr   <- unique(df.spec$modR[df.spec$species == sp])
-  mod.fam.l <- df.spec$modFAM[df.spec$species == sp]
-  zi.type.l <- df.spec$modZI[df.spec$species == sp]
-
-  ## subset dataframe and specify weight based on modelled biogeographical region(s) (mod.bgr)
-  if (mod.bgr %in% c("both")) {
-    S.dat <- droplevels(dat[dat$species == sp,])
-    S.dat$weight <- S.dat$weight.l
+  
+  ## list of model family and zi-type for model selection
+  if(mod.sel == TRUE) {
+    mod.fam.l <- df.spec$modFAM[df.spec$species == sp]
+    zi.type.l <- df.spec$modZI[df.spec$species == sp]    
+  }
+  
+  ## only one model family and zi-type for final models
+  if(mod.sel == FALSE) {
+    mod.fam.l <- df.spec$modFAM[df.spec$species == sp & df.spec$modFINAL == TRUE]
+    zi.type.l <- df.spec$modZI[df.spec$species == sp & df.spec$modFINAL == TRUE]    
   }
 
-  if (mod.bgr %in% c("atl", "kon")) {
-    S.dat <- droplevels(dat[dat$species == sp & dat$region == as.character(mod.bgr),])
-    S.dat$weight <- S.dat$weight.l.r
-  }
-
+  ## subset dataframe 
+  S.dat <- droplevels(dat[dat$species == sp,])
 
   ## for-loop for different model per species (for comparison)
   for (m in 1:length(mod.fam.l)) {
@@ -370,7 +403,7 @@ for (sp in spec.list) {
     if (mod.fam %in% c("pois", "nb")) {
 
       if (zi.type == "none") {
-        mod.form <- bf(ab2 ~
+        mod.form <- bf(ab2 ~ s(year.s, by = nat.region) + nat.region +
                          OE_25 +
                          offset(log(off)) +
                          poly(PC1r, 2) + poly(PC2r, 2) + poly(PC3r, 2) +
@@ -382,7 +415,7 @@ for (sp in spec.list) {
     if (mod.fam %in% c("zip", "zinb")) {
 
       if (zi.type == "none") {
-        mod.form <- bf(ab2 ~
+        mod.form <- bf(ab2 ~ s(year.s, by = nat.region) + nat.region +
                          OE_25 +
                          offset(log(off)) +
                          poly(PC1r, 2) + poly(PC2r, 2) + poly(PC3r, 2) +
@@ -391,7 +424,7 @@ for (sp in spec.list) {
       }
 
       if (zi.type == "R") {
-        mod.form <- bf(ab2 ~
+        mod.form <- bf(ab2 ~ s(year.s, by = nat.region) + nat.region +
                          OE_25 +
                          offset(log(off)) +
                          poly(PC1r, 2) + poly(PC2r, 2) + poly(PC3r, 2) +
@@ -400,7 +433,7 @@ for (sp in spec.list) {
       }
 
       if (zi.type == "PCA") {
-        mod.form <- bf(ab2 ~
+        mod.form <- bf(ab2 ~ s(year.s, by = nat.region) + nat.region +
                          OE_25 +
                          offset(log(off)) +
                          poly(PC1r, 2) + poly(PC2r, 2) + poly(PC3r, 2) +
@@ -409,69 +442,16 @@ for (sp in spec.list) {
       }
 
       if (zi.type == "F") {
-        mod.form <- bf(ab2 ~
+        mod.form <- bf(ab2 ~ s(year.s, by = nat.region) + nat.region +
                          OE_25 +
                          offset(log(off)) +
                          poly(PC1r, 2) + poly(PC2r, 2) + poly(PC3r, 2) +
                          (1|ID),
                        zi ~ (1|ID))
       }
-
-      if (zi.type == "RF") {
-        mod.form <- bf(ab2 ~
-                         OE_25 +
-                         offset(log(off)) +
-                         poly(PC1r, 2) + poly(PC2r, 2) + poly(PC3r, 2) +
-                         (1|ID),
-                       zi ~ nat.region + (1|ID))
-      }
-
-      if (zi.type == "PCAF") {
-        mod.form <- bf(ab2 ~
-                         OE_25 +
-                         offset(log(off)) +
-                         poly(PC1r, 2) + poly(PC2r, 2) + poly(PC3r, 2) +
-                         (1|ID),
-                       zi ~ PC1r + PC2r + PC3r + (1|ID))
-      }
-
-      if (zi.type == "PCARF") {
-        mod.form <- bf(ab2 ~
-                         OE_25 +
-                         offset(log(off)) +
-                         poly(PC1r, 2) + poly(PC2r, 2) + poly(PC3r, 2) +
-                         (1|ID),
-                       zi ~ nat.region + PC1r + PC2r + PC3r + (1|ID))
-      }
-
     }
 
-    #### 5.2) update model formula (based on modelled biogeographical region(s))
-    ############################################################################-
-
-    if (mod.bgr %in% c("both")) {
-      S.dat <- droplevels(dat[dat$species == sp,])
-      S.dat$weight <- S.dat$weight.l
-      # update model formula
-      mod.form <- update(mod.form, ~ . + s(year.s, by = nat.region) + nat.region)
-
-    }
-
-    ####################
-    ####################
-    ####################
-    ## add nat.region to atl/kon
-    ####################
-    ####################
-    ####################
-    if (mod.bgr %in% c("atl", "kon")) {
-      S.dat <- droplevels(dat[dat$species == sp & dat$region == as.character(mod.bgr),])
-      S.dat$weight <- S.dat$weight.l.r
-      # update model formula
-      mod.form <- update(mod.form, ~ . + s(year.s))
-    }
-
-    #### 5.3) define model family
+    #### 5.2) define model family
     #############################-
 
     if (mod.fam == "pois") fam <- poisson(link = "log")
@@ -480,35 +460,23 @@ for (sp in spec.list) {
     if (mod.fam == "zinb") fam <- zero_inflated_negbinomial(link = "log")
 
 
-    #### 5.4) set priors
+    #### 5.3) set priors
     ####################-
     ## set more specific priors (less narrow for PCs)
 
     priors <- get_prior(mod.form,
                         data = S.dat, family = fam)
-    # priors.norm <- priors
-    # priors.norm$prior[1] <- "normal(0, 2.5)"
-    # 
-    # priors.norm5 <- priors
-    # priors.norm5$prior[1] <- "normal(0, 2.5)"
-    # priors.norm5$prior[priors.norm5$coef %in% c("polyPC1r21", "polyPC1r22", 
-    #                                       "polyPC2r21", "polyPC2r22", 
-    #                                       "polyPC3r21", "polyPC3r22")] <- "normal(0, 5)"
-    # priors.norm5$prior[priors.norm5$prior == "" & priors.norm5$dpar == "zi" & priors.norm5$class == "b"] <- "normal(0, 2.5)"
-    # priors.norm5$prior[priors.norm5$coef %in% c("PC1r", "PC2r", "PC3r")] <- "normal(0, 5)"
-    
-    priors$prior[priors$dpar == "" & priors$class == "b" & priors$coef != ""] <- "normal(0, 2.5)"
+
+    priors$prior[priors$dpar == "" & priors$class == "b" & 
+                   priors$coef != ""] <- "normal(0, 2.5)"
     priors$prior[priors$coef %in% c("polyPC1r21", "polyPC1r22", 
-                                                "polyPC2r21", "polyPC2r22", 
-                                                "polyPC3r21", "polyPC3r22")] <- "normal(0, 10)"
-    priors$prior[priors$prior == "" & priors$dpar == "zi" & priors$class == "b" & priors$coef != ""] <- "normal(0, 2.5)"
+                                    "polyPC2r21", "polyPC2r22", 
+                                    "polyPC3r21", "polyPC3r22")] <- "normal(0, 10)"
+    priors$prior[priors$prior == "" & priors$dpar == "zi" & 
+                   priors$class == "b" & priors$coef != ""] <- "normal(0, 2.5)"
     priors$prior[priors$coef %in% c("PC1r", "PC2r", "PC3r")] <- "normal(0, 10)"
 
-    
-    a.delta <- 0.95; max.td <- 9; nc <- 2; ni <- 2000; nw <- 1000
-
-
-    #### 5.5) run model
+    #### 5.4) run model
     ###################-
 
     mod <- brm(mod.form,
@@ -516,13 +484,21 @@ for (sp in spec.list) {
                cores = ncores, iter = ni, warmup = nw, chains = nc,
                backend = backend, threads = threading(thread),
                thin = 1,
-               control = list(adapt_delta = a.delta, max_treedepth = max.td), prior = priors) 
+               control = list(adapt_delta = a.delta, max_treedepth = max.td), 
+               prior = priors) 
+    
+    ## add kfold in case of model selection
+    if(mod.sel == TRUE) {
+    plan(multisession); mc.cores = parallel::detectCores()
+    mod <- add_criterion(mod, "kfold", K = 16, chains = 4, threads = threading(1))
+    plan(sequential)      
+    }
+
 
     ## save model
-    saveRDS(mod, paste0("./01_models/mod_", sp, "_", zi.type,  mod.fam, "_R", mod.bgr, "_", year1, "-", yearx, ".RDS"))
+    saveRDS(mod, paste0("./01_models/mod_", sp, "_", zi.type,  mod.fam, "_R", 
+                        mod.bgr, "_", year1, "-", yearx, ".RDS"))
 
-    waic(mod)
-    
   } # end of for-loop (model)
 } # end of for-loop (species)
 
@@ -532,6 +508,11 @@ for (sp in spec.list) {
 
 ## check model convergence and posterior predictions of response variable
 ## to chose the best fitting model structure
+df.conv <- data.frame()
+df.stat <- data.frame()
+df.kfold <- data.frame()
+
+
 
 for (sp in spec.list){
 
@@ -546,26 +527,141 @@ for (sp in spec.list){
   }
 
   ## posterior predictions of response variable
-  print(mod.stat(model.list = mods, model.name = names(mods),
+  tmp.stat <- print(mod.stat(model.list = mods, model.name = names(mods),
                  response = "ab2",
                  plot.stats = TRUE,
                  spec = sp))
 
   ## model convergence
-  print(mod.conv(model.list = mods, model.name = names(mods),
+  tmp.conv <- print(mod.conv(model.list = mods, model.name = names(mods),
                  td = max.td,
                  plot.conv = TRUE,
                  spec = sp))
+  
+  ## kfold selection criterion
+  if(mod.sel == TRUE) {
+    ## get kfolds
+    kfoldL <- list()
+    for(m in names(mods)) kfoldL[[m]] <- mods[[m]]$criteria$kfold
+    
+    tmp.kfold <- as.data.frame(loo_compare(kfoldL))
+    tmp.kfold$model <- row.names(tmp.kfold)
+    
+    ## add upr and lwr (1.96*SE, 1*SE)
+    tmp.kfold <- tmp.kfold %>% rowwise() %>%
+      mutate(lwr = elpd_diff - 1.96*se_diff,
+             upr = elpd_diff + 1.96*se_diff,
+             lwr5 = elpd_diff - se_diff,
+             upr5 = elpd_diff + se_diff) %>% ungroup()
+    
+    ## add npar based on model matrix (to get most parsimonious model)
+    for(m in names(mods)) {
+      tmp.kfold$npar[tmp.kfold$model == m] <- length(as_draws_list(mods[[m]])[[1]])
+    }
+    
+    tmp.kfold$species <- sp
+    
+    ## define best and most parsimonious model
+    tmp.kfold$top <- ifelse(tmp.kfold$upr5 >= 0, "yes SE", 
+                     ifelse(tmp.kfold$upr >= 0, "yes 1.96*SE", "no"))
+    
+    ## check model convergence
+    ##########################
+    ##########################
+    ##########################
 
+    tmp.kfold <- tmp.kfold %>% 
+      mutate("final SE" = ifelse(npar == min(npar[top == "yes SE"]), TRUE, FALSE),
+             "final 1.96*SE" = ifelse(npar == min(npar[top %in% c("yes 1.96*SE", "yes SE")]), TRUE, FALSE)) %>%
+      ungroup()
+    
+    ## plot model selection
+    print(ggplot(tmp.kfold) +
+      geom_hline(aes(yintercept = 0), lty = "dashed") +
+      geom_pointrange(aes(x = model, y = elpd_diff, 
+                          ymin = elpd_diff -1.96*se_diff, ymax = elpd_diff +1.96*se_diff, 
+                          color = `final SE`, pch = top)) +
+      geom_pointrange(aes(x = model, y = elpd_diff, 
+                          ymin = elpd_diff -se_diff, ymax = elpd_diff +se_diff, 
+                          color = `final SE`, pch = top), lwd = 1) +
+      scale_color_viridis_d("final mod", end = 0.8, option = "inferno") +
+      scale_shape_manual("within 0 diff.", values = c("yes SE" = 19, "yes 1.96*SE" = 13, "no" = 1)) +
+      ggtitle(sp) +
+      theme_light() +
+      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)))
+    
+    df.kfold <- rbind(df.kfold, tmp.kfold)
+  }
+  df.stat <- rbind(df.stat, tmp.stat)
+  df.conv <- rbind(df.conv, tmp.conv)
+  
 }
 
+write.csv(df.stat, paste0("./01_models/Statistics_", year1, "-", yearx ,".csv"), row.names = F)
+write.csv(df.conv, paste0("./01_models/Convergence_", year1, "-", yearx ,".csv"), row.names = F)
+if(mod.sel) write.csv(df.kfold, paste0("./01_models/Kfold_", year1, "-", yearx ,".csv"), row.names = F)
 
 #### 7) posterior predictions ####
 ##################################-
 
-## get posterior predictions (trends, indices, longterm trends)
+#### 7.1) get posterior predictions (trends, indices, longterm trends) ####
+###########################################################################-
+Coef.total <- NULL
 newdat.total <- NULL
 lt.total     <- NULL
+pw.total     <- NULL
+
+newdat.total <- read.csv(paste0("./02_output/PosteriorPredictions_", year1, "-", yearx ,".csv"))
+lt.total <- read.csv(paste0("./02_output/LongtermTrend_", year1, "-", yearx , "_", yearP - period, "-", yearP, ".csv"))
+
+
+## original names of coefficients
+cL <- c("b_Intercept", 
+        "b_nat.regionB", "b_nat.regionKB", "b_nat.regionKM", 
+        "b_nat.regionmetro", "b_nat.regionSB", "b_nat.regionST",
+        "b_OE_25none", "b_OE_25positive", 
+        "b_polyPC1r21", "b_polyPC2r21", "b_polyPC3r21", 
+        "b_polyPC1r22", "b_polyPC2r22", "b_polyPC3r22", 
+        "bs_syear.s:nat.regionA_1", "bs_syear.s:nat.regionB_1", 
+        "bs_syear.s:nat.regionKB_1", "bs_syear.s:nat.regionKM_1", 
+        "bs_syear.s:nat.regionmetro_1", "bs_syear.s:nat.regionSB_1", 
+        "bs_syear.s:nat.regionST_1",
+        "sds_syear.snat.regionA_1", "sds_syear.snat.regionB_1", 
+        "sds_syear.snat.regionKB_1", "sds_syear.snat.regionKM_1", 
+        "sds_syear.snat.regionmetro_1", "sds_syear.snat.regionSB_1", 
+        "sds_syear.snat.regionST_1",
+        "sd_ID__Intercept", 
+        "b_zi_Intercept", 
+        "b_zi_nat.regionB", "b_zi_nat.regionKB", "b_zi_nat.regionKM", 
+        "b_zi_nat.regionmetro", "b_zi_nat.regionSB", "b_zi_nat.regionST",
+        "b_zi_PC1r", "b_zi_PC2r", "b_zi_PC3r",
+        "sd_ID__zi_Intercept")
+
+## understandable names of coefficients (with region in zi-model)
+cRL   <- c("intercept [negative, A]", 
+           "region [B]", "region [KB]", "region [KM]", 
+           "region [metro]", "region [SB]", "region [ST]", 
+           "observer effect [none]", "observer effect [positive]", 
+           "PC1 - linear", "PC2 - linear", "PC3 - linear", 
+           "PC1 - quadratic", "PC2 - quadratic", "PC3 - quadratic", 
+           "survey year:region [A]", "survey year:region [B]", 
+           "survey year:region [KB]", "survey year:region [KM]", 
+           "survey year:region [metro]", "survey year:region [SB]", 
+           "survey year:region [ST]", 
+           "survey year:region [A] - smoother", "survey year:region [B] - smoother",                                     
+           "survey year:region [KB] - smoother", "survey year:region [KM] - smoother",                                     
+           "survey year:region [metro] - smoother", "survey year:region [SB] - smoother",                                     
+           "survey year:region [ST] - smoother",                                   
+           "ID intercept", 
+           "zi - intercept [A]", 
+           "zi - region [B]", "zi - region [KB]", "zi - region [KM]", 
+           "zi - region [metro]", "zi - region [SB]", "zi - region [ST]", 
+           "zi - PC1 - linear", "zi - PC2 - linear", "zi - PC3 - linear", 
+           "zi - ID intercept")
+
+## understandable names of coefficients (without region in zi-model)
+cPL  <- cRL
+cPL[cPL == "zi - intercept [A]"] <- "zi - intercept"
 
 for (sp in spec.list) {
 
@@ -581,133 +677,103 @@ for (sp in spec.list) {
   mod <- readRDS(paste0("./01_models/mod_", sp, "_", zi.type,  mod.fam, "_R", mod.bgr, "_", year1, "-", yearx, ".RDS"))
   S.dat <- mod$data
   S.dat$year <- S.dat$year.s + year1
+  
+  ## coefficient estimates
+  mod.coef <- cL[which(c(cL %in% colnames(as.data.frame(mod))))]
 
-  ## add region (for plotting colors per region)
-  if (mod.bgr %in% c("atl", "kon")) S.dat$region <- mod.bgr
-
-  ## create newdat for model predictions
-  if (mod.bgr == "both") {
-    newdat <- expand.grid(year.s = seq(year1-year1, yearx-year1, length = 4*(yearx-year1)+1),
-                          nat.region = levels(as.factor(S.dat$nat.region)),
-                          #region = levels(as.factor(S.dat$region)),
-                          OE_25  = "none",
-                          off = 1, # abundance per 1 km²
-                          PC1r   = mean(S.dat$PC1r),  
-                          PC2r   = mean(S.dat$PC2r),  
-                          PC3r   = mean(S.dat$PC3r))
-  }
-
-  if (mod.bgr %in% c("atl", "kon")) {
-    newdat <- expand.grid(year.s = seq(year1-year1, yearx-year1, length = 4*(yearx-year1)+1),
-                          nat.region = levels(as.factor(S.dat$nat.region)),
-                          OE_25  = "none",
-                          off = 1, # abundance per 1 km²
-                          PC1r   = mean(S.dat$PC1r),
-                          PC2r   = mean(S.dat$PC2r),
-                          PC3r   = mean(S.dat$PC3r))
-  }
-
-
-  newdat$year <- newdat$year.s + year1
-
-  ## create newdat2 file for slope significance
-  epsilon <- 0.0001
-  newdat2  <- newdat  %>% mutate(year.s = year.s + epsilon)
-
-  ## extract predictions and newdat in lists, add overall predictions weighted by proportion of atl and kon in NRW
-  pred.list   <- NULL
-  pred2.list  <- NULL
-  newdat.list <- NULL
-
-  # if (mod.bgr %in% c("both", "atl")) {
-  #   pred.list[["atl"]]       <- as.data.frame(t(fitted(mod, newdata = newdat,  summary = FALSE, re_formula = NA))[newdat$region == "atl",])
-  #   pred2.list[["atl"]]      <- as.data.frame(t(fitted(mod, newdata = newdat2,  summary = FALSE, re_formula = NA))[newdat$region == "atl",])
-  #   newdat.list[["atl"]]     <- newdat[newdat$region == "atl",]
-  # }
-  # 
-  # if (mod.bgr %in% c("both", "kon")) {
-  #   pred.list[["kon"]]       <- as.data.frame(t(fitted(mod, newdata = newdat,  summary = FALSE, re_formula = NA))[newdat$region == "kon",])
-  #   pred2.list[["kon"]]      <- as.data.frame(t(fitted(mod, newdata = newdat2,  summary = FALSE, re_formula = NA))[newdat$region == "kon",])
-  #   newdat.list[["kon"]]     <- newdat[newdat$region == "kon",]
-  # }
-
-  for(nr in unique(newdat$nat.region)) {
-    pred.list[[nr]]       <- as.data.frame(t(fitted(mod, newdata = newdat,  summary = FALSE, re_formula = NA))[newdat$nat.region == nr,])
-    pred2.list[[nr]]      <- as.data.frame(t(fitted(mod, newdata = newdat2,  summary = FALSE, re_formula = NA))[newdat$nat.region == nr,])
-    newdat.list[[nr]]     <- newdat[newdat$nat.region == nr,]    
+  Coef.Est <- as.data.frame(mod)[,mod.coef] # extract from here
+  
+  Coef.df <- data.frame(Coef = mod.coef)
+  
+  
+  for (i in mod.coef) {
+    
+    Coef.df$lwr[Coef.df$Coef == i]    <- quantile(Coef.Est[, c(i)], probs = 0.025)
+    Coef.df$fit[Coef.df$Coef == i]    <- quantile(Coef.Est[, c(i)], probs = 0.5)
+    Coef.df$upr[Coef.df$Coef == i]    <- quantile(Coef.Est[, c(i)], probs = 0.975)
+    Coef.df$BayesP[Coef.df$Coef == i] <- mean(Coef.Est[, c(i)] > 0)
     
   }
   
-  if (mod.bgr == "both") {
-
-    pred.list[["atl"]]   <- pred.list[["A"]]*0.117 + 
-      pred.list[["B"]]*0.209 + 
-      pred.list[["KB"]]*0.051 + 
-      pred.list[["KM"]]*0.151 + 
-      #pred.list[["SB"]]*0.0001 + 
-      pred.list[["ST"]]*0.351 + 
-      pred.list[["metro"]]*0.121 
+  Coef.df$species    <- sp
+  Coef.df$modR    <- mod.bgr
+  Coef.df$modZI   <- zi.type
+  Coef.df$modFAM  <- mod.fam
+  Coef.df$period  <- as.character(paste0(year1, " bis ", yearx))
+  Coef.df$coefficient <- NA
+  
+  for (c in Coef.df$Coef) {
     
-    pred2.list[["atl"]]   <- pred2.list[["A"]]*0.117 + 
-      pred2.list[["B"]]*0.209 + 
-      pred2.list[["KB"]]*0.051 + 
-      pred2.list[["KM"]]*0.151 + 
-      #pred2.list[["SB"]]*0.0001 + 
-      pred2.list[["ST"]]*0.351 + 
-      pred2.list[["metro"]]*0.121 
+    ifelse(zi.type %in% c("R"), 
+           Coef.df$coefficient[Coef.df$Coef == c] <- cRL[cL == c],
+           Coef.df$coefficient[Coef.df$Coef == c] <- cPL[cL == c])
     
-    pred.list[["kon"]]   <- pred.list[["A"]]*0.021 + 
-      pred.list[["B"]]*0.092 + 
-      pred.list[["KB"]]*0.201 + 
-      pred.list[["KM"]]*0.004 + 
-      pred.list[["SB"]]*0.647 + 
-      pred.list[["ST"]]*0.012 + 
-      pred.list[["metro"]]*0.023 
-    
-    pred2.list[["kon"]]   <- pred2.list[["A"]]*0.021 + 
-      pred2.list[["B"]]*0.092 + 
-      pred2.list[["KB"]]*0.201 + 
-      pred2.list[["KM"]]*0.004 + 
-      pred2.list[["SB"]]*0.647 + 
-      pred2.list[["ST"]]*0.012 + 
-      pred2.list[["metro"]]*0.023 
-      
-    pred.list[["overall"]]  <- pred.list[["atl"]]*0.555 + pred.list[["kon"]]*0.445
-    pred2.list[["overall"]]  <- pred2.list[["atl"]]*0.555 + pred2.list[["kon"]]*0.445
-    newdat.list[["overall"]] <- newdat.list[["kon"]] <- newdat.list[["atl"]] <- newdat.list[["A"]]
-    newdat.list[["overall"]]$nat.region <- "overall"
-    newdat.list[["atl"]]$nat.region <- "atl"
-    newdat.list[["kon"]]$nat.region <- "kon"
   }
 
-  ## loop through regions
-  for (r in names(pred.list)) {
-    pred.r   <- pred.list[[r]]
-    pred2.r  <- pred2.list[[r]]
-    newdat.r <- newdat.list[[r]]
+  Coef.total <- rbind(Coef.total, Coef.df)
+
+  ## create newdat for model predictions
+  newdat <- expand.grid(year.s = seq(year1-year1, yearx-year1, length = 4*(yearx-year1)+1),
+                        nat.region = levels(as.factor(S.dat$nat.region)),
+                        #region = levels(as.factor(S.dat$region)),
+                        OE_25  = "none",
+                        off = 1) # abundance per 1 km²
+
+  ## extract mean PC values (per nat. region)
+  newdat <- newdat %>% group_by(nat.region) %>%
+    mutate(PC1r = mean(S.dat$PC1r[S.dat$nat.region == first(nat.region)]),
+           PC2r = mean(S.dat$PC2r[S.dat$nat.region == first(nat.region)]),
+           PC3r = mean(S.dat$PC3r[S.dat$nat.region == first(nat.region)]))
+
+  newdat$year <- newdat$year.s + year1
+
+  ## extract predictions and newdat per nat. region in lists, add overall
+  # predictions and per biogeographical region weighted by proportion of
+  # nat. regions in NRW
+  predL   <- list()
+  newdatL <- list()
+
+  for(nr in unique(newdat$nat.region)) {
+    predL[[nr]]  <- as.data.frame(t(fitted(mod, newdata = newdat, summary = FALSE,
+                                           re_formula = NA))[newdat$nat.region == nr,])
+    newdatL[[nr]] <- newdat[newdat$nat.region == nr,]
+
+  }
+
+  predL[["atl"]]   <- predL[["A"]]*0.117 +
+    predL[["B"]]*0.209 +
+    predL[["KB"]]*0.051 +
+    predL[["KM"]]*0.151 +
+    #predL[["SB"]]*0.0001 +
+    predL[["ST"]]*0.351 +
+    predL[["metro"]]*0.121
+
+
+  predL[["kon"]]   <- predL[["A"]]*0.021 +
+    predL[["B"]]*0.092 +
+    predL[["KB"]]*0.201 +
+    predL[["KM"]]*0.004 +
+    predL[["SB"]]*0.647 +
+    predL[["ST"]]*0.012 +
+    predL[["metro"]]*0.023
+
+  predL[["overall"]]  <- predL[["atl"]]*0.555 + predL[["kon"]]*0.445
+  newdatL[["overall"]] <- newdatL[["kon"]] <- newdatL[["atl"]] <- newdatL[["A"]]
+  newdatL[["overall"]]$nat.region <- "overall"
+  newdatL[["atl"]]$nat.region <- "atl"
+  newdatL[["kon"]]$nat.region <- "kon"
+
+
+  ## loop through different predictions
+  for (r in names(predL)) {
+    pred.r   <- predL[[r]]
+    newdat.r <- newdatL[[r]]
 
     ## trend & 95% CrI
     ##################-
     newdat.r$lwr <- apply(X = pred.r, MARGIN = 1, FUN = quantile, prob = 0.025)
     newdat.r$fit <- apply(X = pred.r, MARGIN = 1, FUN = quantile, prob = 0.5)
     newdat.r$upr <- apply(X = pred.r, MARGIN = 1, FUN = quantile, prob = 0.975)
-
-    ## Calculate the difference and divide by epsilon - this is analogous to dx/dt
-    diff <- (pred2.r - pred.r) /epsilon
-
-    ## using the differences, we calculate the mean and lower and upper quantiles
-    newdat.r$lwr.diff  <- apply(diff, MARGIN = 1, FUN = quantile, prob = 0.025)
-    newdat.r$fit.diff  <- apply(diff, MARGIN = 1, FUN = quantile, prob = 0.5)
-    newdat.r$upr.diff  <- apply(diff, MARGIN = 1, FUN = quantile, prob = 0.975)
-
-    newdat.r$incr     <- NA; newdat.r$decr     <- NA
-    newdat.r$fit.incr <- NA; newdat.r$fit.decr <- NA
-
-    ## select slope parts with sign. increase/decrease (95% CrI of slope does not include 0)
-    newdat.r$incr[newdat.r$fit.diff > 0 & newdat.r$lwr.diff > 0] <- newdat.r$fit.diff[newdat.r$fit.diff > 0 & newdat.r$lwr.diff > 0]
-    newdat.r$decr[newdat.r$fit.diff < 0 & newdat.r$upr.diff < 0] <- newdat.r$fit.diff[newdat.r$fit.diff < 0 & newdat.r$upr.diff < 0]
-    newdat.r$fit.incr[!is.na(newdat.r$incr)] <- newdat.r$fit[!is.na(newdat.r$incr)] # this is needed for plotting only
-    newdat.r$fit.decr[!is.na(newdat.r$decr)] <- newdat.r$fit[!is.na(newdat.r$decr)] # this is needed for plotting only
 
     ## index & 95% CrI
     ##################-
@@ -733,159 +799,117 @@ for (sp in spec.list) {
     lt.tbl$upr    <- apply(X = diff.lt, MARGIN = 1, FUN = quantile, prob = 0.975)
     lt.tbl$BayesP <- length(diff.lt[diff.lt > 0]) / length(diff.lt)
 
+    ## pairwise comparison & 95% CrI
+    ################################-
+    pw.tbl <- data.frame(nat.region = r, year = year1:(yearx-1))
+    newdat.r$pw.slope <- NA # needed for plotting
+    newdat.r$pw.slope.i <- NA # needed for plotting
+
+    for (y in year1:(yearx-1)) {
+
+      diff.pw <- pred.r[newdat.r$year == y+1,] - pred.r[newdat.r$year == y,]
+      diff.pw.i <- pred.i[newdat.r$year == y+1,] - pred.i[newdat.r$year == y,]
+
+      pw.tbl$lwr[pw.tbl$year == y]    <- apply(X = diff.pw, MARGIN = 1, FUN = quantile, prob = 0.025)
+      pw.tbl$fit[pw.tbl$year == y]    <- apply(X = diff.pw, MARGIN = 1, FUN = quantile, prob = 0.5)
+      pw.tbl$upr[pw.tbl$year == y]    <- apply(X = diff.pw, MARGIN = 1, FUN = quantile, prob = 0.975)
+      pw.tbl$BayesP[pw.tbl$year == y] <- length(diff.pw[diff.pw > 0])/length(diff.pw)
+      pw.tbl$lwr.i[pw.tbl$year == y]    <- apply(X = diff.pw.i, MARGIN = 1, FUN = quantile, prob = 0.025)
+      pw.tbl$fit.i[pw.tbl$year == y]    <- apply(X = diff.pw.i, MARGIN = 1, FUN = quantile, prob = 0.5)
+      pw.tbl$upr.i[pw.tbl$year == y]    <- apply(X = diff.pw.i, MARGIN = 1, FUN = quantile, prob = 0.975)
+      pw.tbl$BayesP.i[pw.tbl$year == y] <- length(diff.pw.i[diff.pw.i > 0])/length(diff.pw.i)
+
+      if(pw.tbl$BayesP[pw.tbl$year == y] >= 0.975) {
+        newdat.r$pw.slope[floor(newdat.r$year) == y] <- "incr"
+      }
+
+      if(pw.tbl$BayesP[pw.tbl$year == y] <= 0.025) {
+        newdat.r$pw.slope[floor(newdat.r$year) == y] <- "decr"
+      }
+
+      if(pw.tbl$BayesP.i[pw.tbl$year == y] >= 0.975) {
+        newdat.r$pw.slope.i[floor(newdat.r$year) == y] <- "incr"
+      }
+
+      if(pw.tbl$BayesP.i[pw.tbl$year == y] <= 0.025) {
+        newdat.r$pw.slope.i[floor(newdat.r$year) == y] <- "decr"
+      }
+
+    }
 
     ## merge data
     newdat.r$species <- sp
     lt.tbl$species   <- sp
+    pw.tbl$species   <- sp
     lt.tbl$longterm  <- paste0(yearP - period, "-", yearP)
     newdat.total     <- rbind(newdat.total, newdat.r)
     lt.total         <- rbind(lt.total, lt.tbl)
+    pw.total         <- rbind(pw.total, pw.tbl)
 
   } ## end of region loop
-  
-  write.csv(newdat.total, paste0("./02_output/PosteriorPreditions_", year1, "-", yearx ,".csv"),
+
+  write.csv(newdat.total, paste0("./02_output/PosteriorPredictions_", year1, "-", yearx ,".csv"),
             row.names = F, fileEncoding = "latin1")
   write.csv(lt.total,     paste0("./02_output/LongtermTrend_", year1, "-", yearx , "_", yearP - period, "-", yearP, ".csv"),
             row.names = F, fileEncoding = "latin1")
+  write.csv(pw.total,     paste0("./02_output/PairWise_", year1, "-", yearx , "_", yearP - period, "-", yearP, ".csv"),
+            row.names = F, fileEncoding = "latin1")
+  write.csv(Coef.total, paste0("./02_output/CoefficientEstimates_", year1, "-", yearx ,".csv"), 
+            row.names = F, fileEncoding = "latin1")
+
+  #### 7.2) plot posterior predictions (trends, indices, longterm trends) ####
+  ############################################################################-
   
-  ## plot posterior predictions
-  #############################-
-
+  ## S.dat for atl, kon and overall (for plotting reasons)
+  S.dat2 <- left_join(S.dat, unique(df.PCA[, c("ID", "region")]), by = "ID")
+  S.dat2$nat.region <- S.dat2$region
+  tmp <- S.dat2 
+  tmp$nat.region <- "overall"
+  S.dat2 <- rbind(S.dat2, tmp); rm(tmp)
+  
+  ## fit.slope (for plotting reasons of incr or decr)
+  newdat.total$fit.slope[!is.na(newdat.total$pw.slope)] <- newdat.total$fit[!is.na(newdat.total$pw.slope)]
+  newdat.total$fit.slope.i[!is.na(newdat.total$pw.slope.i)] <- newdat.total$fit.i[!is.na(newdat.total$pw.slope.i)]
+  
+  pdf(file = paste0("./02_output/PostPred_", sp, "_",  year1, "-", yearx ,".pdf"))
+  ## nat. regions
+  ###############-
+  tmp <- newdat.total[newdat.total$species == sp & 
+                        !newdat.total$nat.region %in% c("atl", "kon", "overall"),]
+  
   ## plot abundance trend
-  g <- ggplot() +
-
-    # add horizontal line at y = 0
-    geom_hline(yintercept = 0, lty = "dashed", linewidth = 0.5) +
-
-    # add raw data (colored dots)
-    geom_beeswarm(data = S.dat, aes(x = year, y = ab2/2, color = nat.region),
-                  size = 0.5, cex = 0.3, alpha = 0.5) +
-
-    # add trend
-    geom_ribbon(data = newdat.total[newdat.total$species == sp,],
-                aes(x = year, ymin = lwr, ymax = upr, color = nat.region, fill = nat.region),
-                alpha = 0.3) +
-    geom_line(data = newdat.total[newdat.total$species == sp,],
-              aes(x = year, y = fit, color = nat.region),
-              lwd = 1) +
-
-    # add sign. slope
-    geom_line(aes(year, fit.incr, group = nat.region),
-              data = newdat.total[newdat.total$species == sp,],
-              col = "black", lty = 1, linewidth = 1, na.rm = TRUE) +
-    geom_line(aes(year, fit.decr, group = nat.region), 
-              data = newdat.total[newdat.total$species == sp,],
-              col = "black", lty = 1, linewidth = 1, na.rm = TRUE) +
-
-
-    # add labs
-    ylim(0, max(c(S.dat$ab2/2, newdat.total$upr[newdat.total$species == sp]))) +
-    labs(x = "year", y = "abundance per km²",
-         title = paste0(sp, " (", mod.fam, ", ", zi.type, ")"),
-         subtitle = "black = period of robust increase/decrease") +
-    facet_wrap(~nat.region) +
-    theme_classic()
-
-  # add region specific colors
-  if (mod.bgr == "both") {
-    g <- g +
-      scale_color_manual(values = c("atl" = "blue", "kon" = "orange", "overall" = "grey40")) +
-      scale_fill_manual( values = c("atl" = "blue", "kon" = "orange", "overall" = "grey40"))
-  }
-
-  if (mod.bgr == "atl") {
-    g <- g +
-      scale_color_manual(values = c("atl" = "blue")) +
-      scale_fill_manual( values = c("atl" = "blue"))
-  }
-
-  if (mod.bgr == "kon") {
-    g <- g +
-      scale_color_manual(values = c("kon" = "orange")) +
-      scale_fill_manual( values = c("kon" = "orange"))
-  }
-
-  print(g)
-
+  plot.ab(df.raw = S.dat, newdat = tmp, group = "nat.region")
+  
+  ## plot index
+  plot.in(newdat = tmp, group = "nat.region")
+  
+  ## plot longterm
+  tmp <- lt.total[lt.total$species == sp & 
+                    !lt.total$nat.region %in% c("atl", "kon", "overall"),]
+  
+  plot.lt(newdat = tmp, group = "nat.region")
+  
+  ## atl, kon, overall
+  ####################-
+  tmp <- newdat.total[newdat.total$species == sp & 
+                        newdat.total$nat.region %in% c("atl", "kon", "overall"),]
+   
+  ## plot abundance trend
+  plot.ab(df.raw = S.dat2, newdat = tmp, group = "region")
 
   ## plot index
-  g <- ggplot(newdat.total[newdat.total$species == sp,],
-              aes(x = year, y = fit.i, ymin = lwr.i, ymax = upr.i)) +
+  plot.in(newdat = tmp, group = "region")
+  
+  ## plot longterm
+  tmp <- lt.total[lt.total$species == sp & 
+                    lt.total$nat.region %in% c("atl", "kon", "overall"),]
+  
+  plot.lt(newdat = tmp, group = "region")
 
-    # add horizontal lines at y = 0 and y = 1
-    geom_hline(yintercept = 0, show.legend = FALSE, linetype = "dashed", linewidth = 0.5) +
-    geom_hline(yintercept = 1, show.legend = FALSE, linetype = "dashed", linewidth = 0.5) +
-
-    # add trend
-    geom_ribbon(aes(color = region, fill = region), alpha = 0.2) +
-    geom_line(aes(color = region), lwd = 1) +
-
-    # add labs
-    ylim(0, max(newdat.total$upr.i[newdat.total$species == sp])) +
-    labs(y = "Index", x = "survey year",
-         title = paste0(sp, " (", mod.fam, ", ", zi.type, ")")) + 
-    theme_classic()
-
-  # add region specific colors
-  if (mod.bgr == "both") {
-    g <- g +
-      scale_color_manual(values = c("atl" = "blue", "kon" = "orange", "overall" = "grey40")) +
-      scale_fill_manual( values = c("atl" = "blue", "kon" = "orange", "overall" = "grey40"))
-  }
-
-  if (mod.bgr == "atl") {
-    g <- g +
-      scale_color_manual(values = c("atl" = "blue")) +
-      scale_fill_manual( values = c("atl" = "blue"))
-  }
-
-  if (mod.bgr == "kon") {
-    g <- g +
-      scale_color_manual(values = c("kon" = "orange")) +
-      scale_fill_manual( values = c("kon" = "orange"))
-  }
-
-  print(g)
-
-  ## plot longterm trend
-  g <- ggplot() +
-
-    # add horizontal line at 0
-    geom_hline(yintercept = 0, lty = "dashed", linewidth = 0.5) +
-
-    # add longterm trend
-    geom_pointrange(aes(x = region, y = fit, ymin = lwr, ymax = upr, color = region),
-                    data = lt.total[lt.total$species == sp,],
-                    linewidth = 1, fatten = 8) +
-    geom_pointrange(aes(x = region, y = fit, ymin = lwr25, ymax = upr75, color = region),
-                    data = lt.total[lt.total$species == sp,],
-                    linewidth = 2, fatten = 8) +
-
-    # add labs
-    labs(x = "biogeographical region",
-         y = paste0(period, "-year abundance difference \n (", yearP - period, "-", yearP, ")"),
-         title = paste0(sp, " (", mod.fam, ", ", zi.type, ")"),
-         subtitle = "Longterm trend with 50% (thick) and 95% (thin) CrI") +
-      theme_classic() +
-      theme(legend.position = "none")
-
-  # add region specific colors
-  if(mod.bgr == "both") {
-    g <- g +
-      scale_color_manual(values = c("atl" = "blue", "kon" = "orange", "overall" = "grey40"))
-  }
-
-  if (mod.bgr == "atl") {
-    g <- g +
-      scale_color_manual(values = c("atl" = "blue"))
-  }
-
-  if (mod.bgr == "kon") {
-    g <- g +
-      scale_color_manual(values = c("kon" = "orange"))
-  }
-
-  print(g)
-
+  dev.off()
 
 } ## end of species loop
+
+## add coefficient table ##
+###########################
+###########################

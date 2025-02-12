@@ -25,7 +25,7 @@ The data subset consists of four species (Common Blackbird, Common Chiffchaff, C
 
 ### code
 - `EAS_bird.R`: script for data preparation, modelling process, posterior predictive checks and posterior predictions.
-
+- `EAS_bird_plots.R`: script with helper functions for plotting
 
 ## Required packages outside of CRAN
 - `EAS` package (helper functions to analyse population trends from monitoring data with highly structured sampling designs). Installed by default via `devtools::install_github("m-rieger/EAS")`  
