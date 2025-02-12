@@ -15,6 +15,7 @@ pckgs <- c(
     "bayestestR", # for mcse()
     "pracma", # for factor loading rotation (PCA)
     "parallel", # detectCores()
+    "future", # for parallelisation
     "ggbeeswarm", # for plots
     "svDialogs" # for pop-up window
 )
