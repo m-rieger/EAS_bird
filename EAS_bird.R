@@ -612,10 +612,6 @@ newdat.total <- NULL
 lt.total     <- NULL
 pw.total     <- NULL
 
-newdat.total <- read.csv(paste0("./02_output/PosteriorPredictions_", year1, "-", yearx ,".csv"))
-lt.total <- read.csv(paste0("./02_output/LongtermTrend_", year1, "-", yearx , "_", yearP - period, "-", yearP, ".csv"))
-
-
 ## original names of coefficients
 cL <- c("b_Intercept", 
         "b_nat.regionB", "b_nat.regionKB", "b_nat.regionKM", 

@@ -1,8 +1,8 @@
 "species","species_sci","modR","modZI","modFAM","modFINAL"
-"Eurasian Blue Tit","Cyanistes caeruleus","both","nb","none",TRUE
-"European Green Woodpecker","Picus viridis","both","pois","none",TRUE
-"Black Redstart","Phoenicurus ochruros","both","zip","none",TRUE
-"Eurasian Jay","Garrulus glandarius","both","zinb","PCA",TRUE
+"Eurasian Blue Tit","Cyanistes caeruleus","both","none","nb",TRUE
+"European Green Woodpecker","Picus viridis","both","none","pois",TRUE
+"Black Redstart","Phoenicurus ochruros","both","none","zip",TRUE
+"Eurasian Jay","Garrulus glandarius","both","PCA","zinb",TRUE
 "Eurasian Blue Tit","Cyanistes caeruleus","both","none","pois",FALSE
 "European Green Woodpecker","Picus viridis","both","none","nb",FALSE
 "Black Redstart","Phoenicurus ochruros","both","none","pois",FALSE
