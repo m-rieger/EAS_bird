@@ -387,8 +387,8 @@ for (sp in spec.list) {
   
   ## only one model family and zi-type for final models
   if(mod.sel == FALSE) {
-    mod.fam.l <- df.spec$modFAM[df.spec$species == sp & df.spec$modFINAL == TRUE]
-    zi.type.l <- df.spec$modZI[df.spec$species == sp & df.spec$modFINAL == TRUE]    
+    mod.fam.l <- df.spec$modFAM[df.spec$species == sp & df.spec$modFINAL == "yes"]
+    zi.type.l <- df.spec$modZI[df.spec$species == sp & df.spec$modFINAL == "yes"]    
   }
 
   ## subset dataframe 
@@ -664,8 +664,8 @@ cPL[cPL == "zi - intercept [A]"] <- "zi - intercept"
 for (sp in spec.list) {
 
   ## check final model
-  if (nrow(df.spec[df.spec$species == sp & df.spec$modFINAL == "yes",]) > 1) stop(paste0("There is more than one final model for '", sp, "'."))
-  if (nrow(df.spec[df.spec$species == sp & df.spec$modFINAL == "yes",]) < 1) stop(paste0("There is no final model for '", sp, "'."))
+  if (nrow(df.spec[df.spec$species == sp & df.spec$modFINAL == "yes",]) > 1) warning(paste0("There is more than one final model for '", sp, "'. The first one is selected."))
+  if (nrow(df.spec[df.spec$species == sp & df.spec$modFINAL == "yes",]) < 1) warning(paste0("There is no final model for '", sp, "'. The species is skipped."))
 
   mod.bgr <- df.spec$modR[df.spec$species == sp   & df.spec$modFINAL == "yes"]
   mod.fam <- df.spec$modFAM[df.spec$species == sp & df.spec$modFINAL == "yes"]
@@ -788,7 +788,7 @@ for (sp in spec.list) {
 
     ## longterm change & 95% CrI
     ############################-
-    diff.lt <- pred.r[newdat.r$year == yearP,] - pred.r[newdat.r$year == yearP-period,]
+    diff.lt <- (pred.r[newdat.r$year == yearP,] - pred.r[newdat.r$year == yearP-period,])/period
 
     lt.tbl <- data.frame(nat.region = r)
     lt.tbl$lwr    <- apply(X = diff.lt, MARGIN = 1, FUN = quantile, prob = 0.025)

@@ -123,9 +123,9 @@ plot.lt <- function(newdat = NULL, group = NULL) {
     
     # add labs
     labs(x = group,
-         y = paste0(period, "-year abundance difference \n (", yearP - period, "-", yearP, ")"),
+         y = "mean annual change in abundance per km²",  
          title = paste0(sp, " (", mod.fam, ", ", zi.type, ")"),
-         subtitle = "Longterm trend with 50% (thick) and 95% (thin) CrI") +
+         subtitle = paste0("Longterm trend (", period, " years, ", yearP - period, "-", yearP, ") with 50% (thick) and 95% (thin) CrI")) +
     theme_classic() +
     theme(legend.position = "none")
 
